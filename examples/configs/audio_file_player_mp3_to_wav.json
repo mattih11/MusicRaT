@@ -1,0 +1,53 @@
+{
+  "app_name": "MusicRaTAudioFilePlayerMp3ToWav",
+  "modules": [
+    {
+      "name": "DeckControlSource_1",
+      "module_class": "MusicRaTDeckControlSource",
+      "outputs": [
+        { "system_id": 20, "instance_id": 6 }
+      ],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "type": 0,
+        "value": 1.0,
+        "ramp_frames": 0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "AudioFilePlayer_1",
+      "module_class": "MusicRaTAudioFilePlayer",
+      "outputs": [
+        { "system_id": 10, "instance_id": 6 },
+        { "system_id": 30, "instance_id": 6 }
+      ],
+      "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 20, "source_instance_id": 6 }
+      ],
+      "period_ms": 10,
+      "params": {
+        "path": "/tmp/musicrat-player-input.mp3",
+        "output_sample_rate_hz": 48000.0,
+        "initial_rate": 1.0,
+        "autoplay": true
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 6 },
+      "outputs": [],
+      "inputs": [
+        { "source_system_id": 10, "source_instance_id": 6 }
+      ],
+      "params": {
+        "path": "/tmp/musicrat-mp3-player-output.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "app_name": "MusicRaTIncompatibleAudioFormat",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [
+        { "system_id": 10, "instance_id": 1 }
+      ],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.25,
+        "sample_rate_hz": 44100.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [
+        { "source_system_id": 10, "source_instance_id": 1 }
+      ],
+      "params": {
+        "path": "/tmp/musicrat-invalid-format.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}

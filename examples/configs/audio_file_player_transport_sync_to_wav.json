@@ -1,0 +1,83 @@
+{
+  "app_name": "MusicRaTAudioFilePlayerTransportSyncToWav",
+  "modules": [
+    {
+      "name": "DeckControlSource_1",
+      "module_class": "MusicRaTDeckControlSource",
+      "outputs": [
+        { "system_id": 20, "instance_id": 2 }
+      ],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "type": 0,
+        "value": 1.0,
+        "ramp_frames": 0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "TransportSource_1",
+      "module_class": "MusicRaTTransportSource",
+      "outputs": [
+        { "system_id": 50, "instance_id": 2 }
+      ],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "tempo_bpm": 120.0,
+        "initial_beat_position": 0.0,
+        "sample_rate_hz": 48000,
+        "beats_per_bar": 4,
+        "beat_unit": 4,
+        "state": 1
+      }
+    },
+    {
+      "name": "AudioFilePlayer_1",
+      "module_class": "MusicRaTAudioFilePlayer",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 4 }
+      ],
+      "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 20, "source_instance_id": 2 },
+        { "source_system_id": 50, "source_instance_id": 2 }
+      ],
+      "period_ms": 10,
+      "params": {
+        "path": "/tmp/musicrat-player-input.wav",
+        "output_sample_rate_hz": 48000.0,
+        "initial_rate": 1.0,
+        "autoplay": true,
+        "beat_grid": {
+          "segments": [
+            { "start_frame": 0, "start_beat": 0.0, "tempo_bpm": 120.0 }
+          ],
+          "sample_rate_hz": 48000.0,
+          "beats_per_bar": 4,
+          "beat_unit": 4,
+          "confidence_per_mille": 1000,
+          "flags": 0
+        },
+        "transport_sync_mode": 2,
+        "sync_rate_ramp_frames": 480
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 4 },
+      "outputs": [],
+      "inputs": [
+        { "source_system_id": 10, "source_instance_id": 4 }
+      ],
+      "params": {
+        "path": "/tmp/musicrat-player-output.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}

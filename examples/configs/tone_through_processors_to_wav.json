@@ -1,0 +1,53 @@
+{
+  "app_name": "MusicRaTToneThroughProcessorsToWav",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.25,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "Gain_1",
+      "module_class": "MusicRaTGain",
+      "outputs": [{ "system_id": 10, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "gain": 1.0,
+        "smoothing_samples": 64,
+        "muted": false,
+        "invert_polarity": false
+      }
+    },
+    {
+      "name": "LevelMeter_1",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [
+        { "system_id": 10, "instance_id": 3 },
+        { "system_id": 30, "instance_id": 1 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": {
+        "path": "/tmp/musicrat-tone.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}
