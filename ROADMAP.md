@@ -206,6 +206,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
     - [x] Preallocated decode-ahead pool and worker handoff
   - [x] Optional libFLAC decoder with CoreRaT file callbacks, seeking, and routed playback coverage
   - [x] Optional libmpg123 decoder with CoreRaT file callbacks, seeking, and routed playback coverage
+  - [x] Optional FFmpeg AAC and Opus decoders with CoreRaT file callbacks, seeking, and routed playback coverage
   - [x] Generation-safe asynchronous load and seek
     - [x] Worker/real-time transition coordinator with stale-lease suspension
     - [x] Player module commands and managed decoder-worker scheduling
@@ -227,7 +228,6 @@ Implement the smallest useful processing toolbox. Each item includes its command
     - [x] Player tempo/phase following with bounded nudges and generation-safe seeks
     - [x] Sync diagnostics and routed master/follower playback coverage
     - [x] Quantized cue, loop, and start actions
-  - [ ] AAC and Opus backends as optional dependencies
 - [ ] Define MusicXML-to-event conversion after transport and note-event semantics stabilize
 
 ## External Control Architecture

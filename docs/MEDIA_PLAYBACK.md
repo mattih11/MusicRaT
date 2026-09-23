@@ -58,7 +58,9 @@ Each backend reports a stable `DecodeError` category for its most recent failed 
 
 `Mp3Reader` uses optional libmpg123 decoding with caller-owned read and seek callbacks backed by `corerat::File`. Open performs a worker-side scan to establish duration and a seek index, fixes output to native-rate signed PCM16 mono or stereo, and converts interleaved samples into bounded planar storage. Decoder allocation, scanning, seeking, and compressed-file I/O remain on the player worker. `MUSICRAT_MP3_SUPPORT` accepts `AUTO`, `ON`, or `OFF` with the same optional-dependency semantics; Debian-family systems provide the pkg-config dependency through `libmpg123-dev`.
 
-`DecoderDispatcher<Backends...>` probes registered backends in order and exposes the selected backend through the same `DecoderBackend` contract. `MediaDecoder` conditionally registers `FlacReader` and `Mp3Reader`, followed by the always-available `WavReader`. Additional formats extend that registry without changing the player or renderer.
+`AacReader` and `OpusReader` use optional FFmpeg demuxing and decoding with a custom `AVIOContext` backed by `corerat::File`. The shared bounded backend accepts only its declared codec ID, converts decoded native-rate audio to interleaved signed PCM16 through libswresample, and then publishes planar blocks. Seeking uses stream timestamps, flushes decoder and resampler state, discards preroll before the requested media frame, and marks the first returned block discontinuous. All FFmpeg allocation, probing, demuxing, decoding, seeking, and resampling remain on the player worker. `MUSICRAT_AAC_SUPPORT` and `MUSICRAT_OPUS_SUPPORT` independently accept `AUTO`, `ON`, or `OFF`. Debian-family systems provide the required pkg-config modules through `libavformat-dev`, `libavcodec-dev`, `libavutil-dev`, and `libswresample-dev`.
+
+`DecoderDispatcher<Backends...>` probes registered backends in order and exposes the selected backend through the same `DecoderBackend` contract. `MediaDecoder` conditionally registers strict FLAC, AAC, and Opus probes before MP3, followed by the always-available `WavReader`. Additional formats extend that registry without changing the player or renderer.
 
 ## Decode-Ahead and Handoff
 
@@ -138,7 +140,7 @@ Deck events may request immediate, next-beat, or next-bar execution. A bounded q
 
 Timer-driven CommRaT modules fetch synchronized inputs against the timer-loop timestamp. Unrouted trailing synchronized inputs remain invalid, preserving compatibility with player graphs that route deck controls without transport. The process launcher starts modules with synchronized dependencies after their producers.
 - Synchronized inputs: optional `DeckControlEventBlock` and `TransportBlock`.
-`MusicRaTDeckControlSource`, `MusicRaTTransportSource`, `audio_file_player_to_wav.json`, `audio_file_player_transport_sync_to_wav.json`, `audio_file_player_quantized_start_to_wav.json`, `audio_file_player_flac_to_wav.json`, `audio_file_player_mp3_to_wav.json`, and `audio_file_player_pitch_lock_to_wav.json` provide complete routed playback examples.
+`MusicRaTDeckControlSource`, `MusicRaTTransportSource`, `audio_file_player_to_wav.json`, `audio_file_player_transport_sync_to_wav.json`, `audio_file_player_quantized_start_to_wav.json`, `audio_file_player_flac_to_wav.json`, `audio_file_player_mp3_to_wav.json`, `audio_file_player_aac_to_wav.json`, `audio_file_player_opus_to_wav.json`, and `audio_file_player_pitch_lock_to_wav.json` provide complete routed playback examples.
 
 ## File Sinks and Encoders
 

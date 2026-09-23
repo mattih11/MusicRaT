@@ -7,6 +7,12 @@
 #if MUSICRAT_HAS_MP3
 #include <mp3_fixture.hpp>
 #endif
+#if MUSICRAT_HAS_AAC
+#include <aac_fixture.hpp>
+#endif
+#if MUSICRAT_HAS_OPUS
+#include <opus_fixture.hpp>
+#endif
 
 #include <cassert>
 #include <filesystem>
@@ -75,6 +81,14 @@ int main() {
     const auto mp3_path = std::filesystem::temp_directory_path()
         / "musicrat_media_decoder_test.mp3";
 #endif
+#if MUSICRAT_HAS_AAC
+    const auto aac_path = std::filesystem::temp_directory_path()
+        / "musicrat_media_decoder_test.aac";
+#endif
+#if MUSICRAT_HAS_OPUS
+    const auto opus_path = std::filesystem::temp_directory_path()
+        / "musicrat_media_decoder_test.opus";
+#endif
 
     CommRaT::Messages::AudioBlock source{};
     source.sample_rate_hz = 44100.0;
@@ -96,6 +110,12 @@ int main() {
 #endif
 #if MUSICRAT_HAS_MP3
     assert(write_mp3_fixture(mp3_path));
+#endif
+#if MUSICRAT_HAS_AAC
+    assert(write_aac_fixture(aac_path));
+#endif
+#if MUSICRAT_HAS_OPUS
+    assert(write_opus_fixture(opus_path));
 #endif
 
     musicrat::backends::media::MediaDecoder decoder{};
@@ -145,6 +165,32 @@ int main() {
     decoder.close();
 #endif
 
+#if MUSICRAT_HAS_AAC
+    assert(decoder.open(aac_path.c_str()));
+    assert(decoder.metadata().codec
+        == musicrat::backends::media::MediaCodec::Aac);
+    assert(decoder.metadata().sample_rate_hz == 48000);
+    assert(decoder.metadata().channel_count == 1);
+    assert(decoder.metadata().frame_count > 150'000);
+    assert(decoder.read(decoded, 3)
+        == musicrat::backends::media::DecodeResult::Data);
+    assert(decoded.frame_count == 3);
+    decoder.close();
+#endif
+
+#if MUSICRAT_HAS_OPUS
+    assert(decoder.open(opus_path.c_str()));
+    assert(decoder.metadata().codec
+        == musicrat::backends::media::MediaCodec::Opus);
+    assert(decoder.metadata().sample_rate_hz == 48000);
+    assert(decoder.metadata().channel_count == 1);
+    assert(decoder.metadata().frame_count >= 48'000);
+    assert(decoder.read(decoded, 3)
+        == musicrat::backends::media::DecodeResult::Data);
+    assert(decoded.frame_count == 3);
+    decoder.close();
+#endif
+
     using FallbackDecoder = musicrat::backends::media::DecoderDispatcher<
         RejectingDecoder,
         musicrat::backends::media::WavReader>;
@@ -162,5 +208,11 @@ int main() {
 #endif
 #if MUSICRAT_HAS_MP3
     std::filesystem::remove(mp3_path);
+#endif
+#if MUSICRAT_HAS_AAC
+    std::filesystem::remove(aac_path);
+#endif
+#if MUSICRAT_HAS_OPUS
+    std::filesystem::remove(opus_path);
 #endif
 }

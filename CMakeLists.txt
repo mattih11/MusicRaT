@@ -105,6 +105,52 @@ if(NOT MUSICRAT_MP3_SUPPORT STREQUAL "OFF")
     endif()
 endif()
 
+set(MUSICRAT_AAC_SUPPORT "AUTO" CACHE STRING
+    "AAC decoder support (AUTO, ON, or OFF)")
+set_property(CACHE MUSICRAT_AAC_SUPPORT PROPERTY STRINGS AUTO ON OFF)
+if(NOT MUSICRAT_AAC_SUPPORT MATCHES "^(AUTO|ON|OFF)$")
+    message(FATAL_ERROR "MUSICRAT_AAC_SUPPORT must be AUTO, ON, or OFF")
+endif()
+
+set(MUSICRAT_HAS_AAC OFF)
+if(NOT MUSICRAT_AAC_SUPPORT STREQUAL "OFF")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FFMPEG_AAC QUIET IMPORTED_TARGET
+            libavformat libavcodec libavutil libswresample)
+    endif()
+    if(TARGET PkgConfig::FFMPEG_AAC)
+        set(MUSICRAT_HAS_AAC ON)
+    elseif(MUSICRAT_AAC_SUPPORT STREQUAL "ON")
+        message(FATAL_ERROR
+            "MUSICRAT_AAC_SUPPORT=ON requires FFmpeg development files "
+            "(libavformat, libavcodec, libavutil, and libswresample)")
+    endif()
+endif()
+
+set(MUSICRAT_OPUS_SUPPORT "AUTO" CACHE STRING
+    "Opus decoder support (AUTO, ON, or OFF)")
+set_property(CACHE MUSICRAT_OPUS_SUPPORT PROPERTY STRINGS AUTO ON OFF)
+if(NOT MUSICRAT_OPUS_SUPPORT MATCHES "^(AUTO|ON|OFF)$")
+    message(FATAL_ERROR "MUSICRAT_OPUS_SUPPORT must be AUTO, ON, or OFF")
+endif()
+
+set(MUSICRAT_HAS_OPUS OFF)
+if(NOT MUSICRAT_OPUS_SUPPORT STREQUAL "OFF")
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FFMPEG_OPUS QUIET IMPORTED_TARGET
+            libavformat libavcodec libavutil libswresample)
+    endif()
+    if(TARGET PkgConfig::FFMPEG_OPUS)
+        set(MUSICRAT_HAS_OPUS ON)
+    elseif(MUSICRAT_OPUS_SUPPORT STREQUAL "ON")
+        message(FATAL_ERROR
+            "MUSICRAT_OPUS_SUPPORT=ON requires FFmpeg development files "
+            "(libavformat, libavcodec, libavutil, and libswresample)")
+    endif()
+endif()
+
 set(MUSICRAT_RUBBERBAND_SUPPORT "AUTO" CACHE STRING
     "Rubber Band pitch-lock support (AUTO, ON, or OFF)")
 set_property(CACHE MUSICRAT_RUBBERBAND_SUPPORT PROPERTY STRINGS AUTO ON OFF)
@@ -162,6 +208,22 @@ if(MUSICRAT_HAS_MP3)
 else()
     target_compile_definitions(musicrat_core INTERFACE MUSICRAT_HAS_MP3=0)
     message(STATUS "MusicRaT MP3 decoder: disabled")
+endif()
+if(MUSICRAT_HAS_AAC)
+    target_link_libraries(musicrat_core INTERFACE PkgConfig::FFMPEG_AAC)
+    target_compile_definitions(musicrat_core INTERFACE MUSICRAT_HAS_AAC=1)
+    message(STATUS "MusicRaT AAC decoder: enabled")
+else()
+    target_compile_definitions(musicrat_core INTERFACE MUSICRAT_HAS_AAC=0)
+    message(STATUS "MusicRaT AAC decoder: disabled")
+endif()
+if(MUSICRAT_HAS_OPUS)
+    target_link_libraries(musicrat_core INTERFACE PkgConfig::FFMPEG_OPUS)
+    target_compile_definitions(musicrat_core INTERFACE MUSICRAT_HAS_OPUS=1)
+    message(STATUS "MusicRaT Opus decoder: enabled")
+else()
+    target_compile_definitions(musicrat_core INTERFACE MUSICRAT_HAS_OPUS=0)
+    message(STATUS "MusicRaT Opus decoder: disabled")
 endif()
 if(MUSICRAT_HAS_RUBBERBAND)
     target_link_libraries(musicrat_core INTERFACE PkgConfig::RUBBERBAND)
@@ -386,9 +448,27 @@ if(BUILD_TESTING)
             COMMAND musicrat_mp3_reader_test)
     endif()
 
+    if(MUSICRAT_HAS_AAC)
+        add_executable(musicrat_aac_reader_test
+            tests/backends/aac_reader_test.cpp)
+        target_include_directories(musicrat_aac_reader_test PRIVATE tests/support)
+        target_link_libraries(musicrat_aac_reader_test PRIVATE musicrat_core)
+        add_test(NAME musicrat.backends.aac_reader
+            COMMAND musicrat_aac_reader_test)
+    endif()
+
+    if(MUSICRAT_HAS_OPUS)
+        add_executable(musicrat_opus_reader_test
+            tests/backends/opus_reader_test.cpp)
+        target_include_directories(musicrat_opus_reader_test PRIVATE tests/support)
+        target_link_libraries(musicrat_opus_reader_test PRIVATE musicrat_core)
+        add_test(NAME musicrat.backends.opus_reader
+            COMMAND musicrat_opus_reader_test)
+    endif()
+
     add_executable(musicrat_media_decoder_test
         tests/backends/media_decoder_test.cpp)
-    if(MUSICRAT_HAS_FLAC OR MUSICRAT_HAS_MP3)
+    if(MUSICRAT_HAS_FLAC OR MUSICRAT_HAS_MP3 OR MUSICRAT_HAS_AAC OR MUSICRAT_HAS_OPUS)
         target_include_directories(musicrat_media_decoder_test PRIVATE tests/support)
     endif()
     target_link_libraries(musicrat_media_decoder_test PRIVATE musicrat_core)
@@ -579,6 +659,34 @@ if(BUILD_TESTING)
                     "${PROJECT_SOURCE_DIR}/examples/configs/audio_file_player_mp3_to_wav.json"
             )
         endif()
+        if(MUSICRAT_HAS_AAC)
+            add_executable(musicrat_audio_file_player_aac_to_wav_test
+                tests/integration/audio_file_player_aac_to_wav_test.cpp)
+            target_include_directories(
+                musicrat_audio_file_player_aac_to_wav_test PRIVATE tests/support)
+            target_link_libraries(
+                musicrat_audio_file_player_aac_to_wav_test PRIVATE musicrat_core)
+            add_test(
+                NAME musicrat.integration.audio_file_player_aac_to_wav
+                COMMAND musicrat_audio_file_player_aac_to_wav_test
+                    "$<TARGET_FILE:musicrat_launcher>"
+                    "${PROJECT_SOURCE_DIR}/examples/configs/audio_file_player_aac_to_wav.json"
+            )
+        endif()
+        if(MUSICRAT_HAS_OPUS)
+            add_executable(musicrat_audio_file_player_opus_to_wav_test
+                tests/integration/audio_file_player_opus_to_wav_test.cpp)
+            target_include_directories(
+                musicrat_audio_file_player_opus_to_wav_test PRIVATE tests/support)
+            target_link_libraries(
+                musicrat_audio_file_player_opus_to_wav_test PRIVATE musicrat_core)
+            add_test(
+                NAME musicrat.integration.audio_file_player_opus_to_wav
+                COMMAND musicrat_audio_file_player_opus_to_wav_test
+                    "$<TARGET_FILE:musicrat_launcher>"
+                    "${PROJECT_SOURCE_DIR}/examples/configs/audio_file_player_opus_to_wav.json"
+            )
+        endif()
         if(MUSICRAT_HAS_RUBBERBAND)
             set_tests_properties(
                 musicrat.integration.audio_file_player_pitch_lock_to_wav
@@ -606,6 +714,20 @@ if(BUILD_TESTING)
         if(MUSICRAT_HAS_MP3)
             set_tests_properties(
                 musicrat.integration.audio_file_player_mp3_to_wav
+                PROPERTIES
+                    FIXTURES_REQUIRED musicrat_tcp_router
+                    RESOURCE_LOCK musicrat_tcp_router)
+        endif()
+        if(MUSICRAT_HAS_AAC)
+            set_tests_properties(
+                musicrat.integration.audio_file_player_aac_to_wav
+                PROPERTIES
+                    FIXTURES_REQUIRED musicrat_tcp_router
+                    RESOURCE_LOCK musicrat_tcp_router)
+        endif()
+        if(MUSICRAT_HAS_OPUS)
+            set_tests_properties(
+                musicrat.integration.audio_file_player_opus_to_wav
                 PROPERTIES
                     FIXTURES_REQUIRED musicrat_tcp_router
                     RESOURCE_LOCK musicrat_tcp_router)
