@@ -93,7 +93,21 @@ application starts. The designer hides generated addresses and positional port
 arrays during normal editing, then fills and validates those mechanical fields
 deterministically before save or launch.
 
-### 4.2 Logical Endpoints
+### 4.2 Physical Typed Ports
+
+Generated module descriptors expose stable MusicRaT metadata for each physical
+CommRaT port that should appear in the designer. Each entry maps a stable ID and
+display name to one exact descriptor direction and positional index, declares a
+semantic domain, and states whether the route is required. The CommRaT payload
+type remains the compatibility authority.
+
+The initial domains are audio, note, control, parameter, transport, telemetry,
+and command. An `Input<NoteEventBlock>` is therefore a first-class note-domain
+port, not a GUI convention inferred from a module name. Metadata validation
+rejects duplicate IDs, duplicate physical positions, invalid indices, and known
+payload/domain mismatches before launch.
+
+### 4.3 Logical Endpoints
 
 A logical endpoint is a control source or feedback target. Examples include an
 LVGL slider, a RatGUI rotary control, a MIDI encoder, a GPIO potentiometer, a
@@ -114,14 +128,20 @@ GUI widgets do not become individual CommRaT modules or mailboxes. Each GUI
 process is an adapter that batches widget events by endpoint ID. Hardware
 backends do the same for physical controls.
 
-### 4.3 Virtual Parameter Ports
+### 4.4 Virtual Parameter Ports
 
 Generated parameter metadata exposes module parameters as virtual control
-targets. A virtual port has a stable parameter ID, value type, unit, range,
-default, display mapping, smoothing policy, and automation flags. Many virtual
-ports share one bounded physical `ParameterEventBlock` input.
+targets. A virtual port has a stable parameter ID and canonical parameter name,
+display name and group, value kind, unit, range, step, display mapping, choices,
+and automation/read-only flags. Its startup default remains authoritative in
+the descriptor's `params_defaults`. Many virtual ports share one bounded
+physical `ParameterEventBlock` input.
 
-### 4.4 Bindings and Mapping
+The `text` kind covers bounded string-backed startup settings such as media and
+output paths. Nested aggregates such as `BeatGrid` remain outside the initial
+editor contract.
+
+### 4.5 Bindings and Mapping
 
 A binding connects one logical source endpoint to a module parameter or another
 semantic target. It stores:
@@ -270,6 +290,42 @@ The first executable proof should route both a virtual GUI knob and a simulated
 hardware knob through the same mapping engine to `MusicRaTGain`, publish feedback
 to both endpoints, persist the project, reload it, and preserve the same
 launch-ready CommRaT application graph.
+
+### 10.1 Initial Browser Prototype
+
+`tools/application-designer` contains the initial TypeScript/React application.
+It loads generated module descriptors and CommRaT application JSON through file
+pickers, renders physical ports from `musicrat_ports`, exposes startup controls
+from `musicrat_parameters`, validates domain and payload compatibility, and
+exports positional CommRaT routes. Its framework-independent graph compiler is
+covered by unit tests, including semantic note routing.
+
+The built-in note-aware catalog is a design fixture until launchable note-source
+and instrument modules exist. The local host now provides automatic installed
+descriptor discovery. Atomic project writes and process launch remain future
+host capabilities.
+
+### 10.2 Installed Descriptor Discovery
+
+Production discovery uses installed artifacts rather than a CMake build tree.
+`cmake --install` places module executables in
+`${CMAKE_INSTALL_BINDIR}` and generated `*.module.json` descriptors in
+`${CMAKE_INSTALL_DATADIR}/musicrat/modules`. The local designer host will expose
+the resulting catalog to the browser frontend. Installed descriptors are
+rewritten to reference their installed executable paths.
+
+The host searches descriptor directories in this order:
+
+1. The colon-separated `MUSICRAT_MODULE_PATH`, for development and explicit
+   deployment overrides.
+2. `$XDG_DATA_HOME/musicrat/modules`, when `XDG_DATA_HOME` is set.
+3. Each `$XDG_DATA_DIRS` entry followed by `/musicrat/modules`.
+4. MusicRaT's configured installation data directory as the final fallback.
+
+Later entries with a duplicate `module_class` are ignored. A descriptor is only
+published to the frontend after schema validation and after its referenced
+module binary is present. Build-directory selection remains an explicit
+development override and is never a production default.
 
 ## 11. Non-Goals for the First Version
 

@@ -1,0 +1,21 @@
+:root {
+  font-family: 'Manrope', sans-serif;
+  color: #17211f;
+  background: #e8ece8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --muted: #66716e;
+  --line: #cbd2ce;
+  --panel: #f7f8f5;
+  --paper: #eef1ed;
+  --accent: #e04f2f;
+  --forest: #254c46;
+  --audio: #e04f2f;
+  --note: #1686a0;
+  --parameter: #b47a16;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
+button, input, select { font: inherit; }
+button { color: inherit; }

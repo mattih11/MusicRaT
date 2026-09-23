@@ -151,21 +151,20 @@ Parameters fall into three categories:
 
 Do not send high-rate automation through JSON parameter RPC. Do not model persistent settings as trigger events.
 
-### 6.2 Parameter Metadata (Planned)
+### 6.2 Parameter Metadata (Initial Implementation)
 
-CommRaT currently exposes parameter names, C++ types, current JSON values, and descriptor defaults. MusicRaT needs additional metadata for each GUI-controllable parameter:
+CommRaT exposes parameter names, C++ types, current JSON values, and descriptor defaults. MusicRaT adds schema-versioned metadata for GUI-controllable parameters:
 
 - Stable numeric ID and canonical string name
 - Display name and group
-- Value kind: continuous, integer, boolean, or choice
+- Value kind: continuous, integer, boolean, choice, or text
 - Native unit and display unit
-- Minimum, maximum, default, and step
-- Linear, logarithmic, decibel, frequency, or custom display mapping
-- Smoothing policy and default ramp duration
+- Minimum, maximum, and step; the default remains in `params_defaults`
+- Linear, logarithmic, or decibel display mapping
 - Automatable/read-only flags
 - Optional enum labels
 
-The canonical string name is persisted in project JSON for readability. A bounded numeric ID is carried in real-time events. Descriptor generation must detect duplicate IDs.
+The canonical string name is persisted in project JSON for readability. A bounded numeric ID is carried in real-time events. MusicRaT launcher preflight rejects duplicate IDs and names, names absent from `params_defaults`, invalid ranges, and malformed choices. Launchable modules publish their flat startup parameters; structured aggregates require a dedicated editor contract. Frequency/custom mappings and explicit smoothing policy remain planned.
 
 ### 6.3 `ControlEventBlock` (Planned)
 
@@ -336,7 +335,12 @@ Current CommRaT application arrays are positional:
 - `synced_inputs[n]` configures descriptor synchronized input `n`.
 - `remotes[n]` configures descriptor remote `n`.
 
-RatGUI must preserve descriptor order when generating JSON. Before arbitrary graph editing is considered stable, MusicRaT should propose stable port IDs or labels in CommRaT descriptors so duplicate payload types remain understandable and reorder-safe.
+RatGUI must preserve descriptor order when generating JSON. MusicRaT's
+`musicrat_ports` metadata maps stable IDs and labels to each exposed descriptor
+direction/index, so duplicate payload types remain understandable and
+reorder-safe. The payload list itself remains authoritative for compatibility.
+Known payloads are cross-checked against their declared domains; in particular,
+`NoteEventBlock` inputs are explicit note-domain graph ports.
 
 ### 11.2 Graph Compilation by RatGUI
 
@@ -377,8 +381,10 @@ cardinality, remotes, and payload identity. It carries optional
 invokes the validator supplied by `musicrat_launcher` after generic routing
 validation.
 
-MusicRaT descriptor metadata declares known audio endpoint format values. The
-current validator resolves fixed values and parameter-backed defaults or
+MusicRaT descriptor metadata declares stable physical ports, virtual parameter
+targets, and known audio endpoint format values. Launcher preflight validates
+port IDs, positions, domains, cardinality, and parameter schemas before audio
+format propagation. The audio validator resolves fixed values and parameter-backed defaults or
 instance overrides, then rejects direct audio routes with incompatible sample
 rates, channel counts, compile-time capacities, or explicitly declared clock
 domains. Modules that preserve audio format declare explicit input-to-output

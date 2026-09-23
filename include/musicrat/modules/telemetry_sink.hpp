@@ -1,5 +1,6 @@
 #pragma once
 
+#include <musicrat/launcher/audio_format_validation.hpp>
 #include <musicrat/musicrat.hpp>
 
 #include <atomic>
@@ -13,6 +14,19 @@ class TelemetrySink : public MusicRaT::Module2<
     using Base = MusicRaT::Module2<commrat::Input<Messages::LevelMeterBlock>>;
 
 public:
+    static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
+        using namespace musicrat::launcher;
+        DescriptorMetadata metadata{};
+        metadata.musicrat_ports.ports = {{
+            .id = "levels",
+            .display_name = "Levels",
+            .direction = PORT_DIRECTION_INPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_TELEMETRY,
+        }};
+        return metadata;
+    }
+
     explicit TelemetrySink(const commrat::ModuleConfig& config)
         : Base(config) {}
 

@@ -8,6 +8,10 @@
 
 namespace CommRaT::Parameters {
 
+inline constexpr uint32_t WAV_SINK_PATH_PARAMETER_ID = 1;
+inline constexpr uint32_t WAV_SINK_SAMPLE_RATE_PARAMETER_ID = 2;
+inline constexpr uint32_t WAV_SINK_CHANNEL_COUNT_PARAMETER_ID = 3;
+
 struct WavSink {
     sertial::fixed_string<512> path{"musicrat-output.wav"};
     uint32_t sample_rate_hz{

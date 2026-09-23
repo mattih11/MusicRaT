@@ -30,6 +30,8 @@ struct LevelMeterBlock {
 
 namespace CommRaT::Parameters {
 
+inline constexpr uint32_t LEVEL_METER_CLIPPING_THRESHOLD_PARAMETER_ID = 1;
+
 struct LevelMeter {
     musicrat::config::sample_type clipping_threshold{1.0};
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <musicrat/config.hpp>
+#include <musicrat/launcher/module_metadata.hpp>
 
 #include <commrat/launcher/module_description.hpp>
 #include <commrat/meta/descriptor.hpp>
@@ -46,6 +47,8 @@ struct AudioModuleFormat {
 
 struct DescriptorMetadata {
     AudioModuleFormat musicrat_audio;
+    PortModuleMetadata musicrat_ports{};
+    ParameterModuleMetadata musicrat_parameters{};
 };
 
 inline DescriptorMetadata audio_source_metadata(
@@ -408,6 +411,18 @@ inline void validate_audio_formats(
     }
 
     throw std::runtime_error("[MusicRaT] Audio format propagation did not converge");
+}
+
+inline void validate_application(
+    const commrat::AppDescription& app,
+    const std::unordered_map<std::string, commrat::ModuleDescriptor>& descriptors) {
+    for (const auto& module : app.modules) {
+        const auto descriptor = descriptors.find(module.module_class);
+        if (descriptor != descriptors.end()) {
+            validate_module_metadata(descriptor->second);
+        }
+    }
+    validate_audio_formats(app, descriptors);
 }
 
 } // namespace musicrat::launcher

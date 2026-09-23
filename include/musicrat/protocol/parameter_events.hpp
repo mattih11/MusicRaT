@@ -25,3 +25,17 @@ struct ParameterEventBlock {
 };
 
 } // namespace CommRaT::Messages
+
+namespace CommRaT::Parameters {
+
+inline constexpr uint32_t PARAMETER_SOURCE_ENDPOINT_ID_PARAMETER_ID = 1;
+inline constexpr uint32_t PARAMETER_SOURCE_PARAMETER_ID_PARAMETER_ID = 2;
+inline constexpr uint32_t PARAMETER_SOURCE_VALUE_PARAMETER_ID = 3;
+
+struct ParameterSource {
+    uint32_t source_endpoint_id{1};
+    uint32_t parameter_id{1};
+    double value{1.0};
+};
+
+} // namespace CommRaT::Parameters

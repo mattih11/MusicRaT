@@ -23,7 +23,68 @@ class Oscillator : public MusicRaT::Module2<
 
 public:
     static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
-        return musicrat::launcher::audio_source_metadata("sample_rate_hz", 1);
+        using namespace musicrat::launcher;
+        auto metadata = audio_source_metadata("sample_rate_hz", 1);
+        metadata.musicrat_ports.ports = {{
+            .id = "audio_out",
+            .display_name = "Audio Out",
+            .direction = PORT_DIRECTION_OUTPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_AUDIO,
+        }};
+        metadata.musicrat_parameters.parameters = {
+            {
+                .id = Parameters::OSCILLATOR_FREQUENCY_PARAMETER_ID,
+                .name = "frequency_hz",
+                .display_name = "Frequency",
+                .group = "Oscillator",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "Hz",
+                .minimum = 0.0,
+                .maximum = 24000.0,
+                .step = 0.1,
+            },
+            {
+                .id = Parameters::OSCILLATOR_AMPLITUDE_PARAMETER_ID,
+                .name = "amplitude",
+                .display_name = "Amplitude",
+                .group = "Oscillator",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .minimum = 0.0,
+                .maximum = 1.0,
+                .step = 0.01,
+            },
+            {
+                .id = Parameters::OSCILLATOR_SAMPLE_RATE_PARAMETER_ID,
+                .name = "sample_rate_hz",
+                .display_name = "Sample Rate",
+                .group = "Audio",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "Hz",
+                .minimum = 8000.0,
+                .maximum = 192000.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::OSCILLATOR_PHASE_OFFSET_PARAMETER_ID,
+                .name = "phase_offset",
+                .display_name = "Phase Offset",
+                .group = "Oscillator",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "cycles",
+                .minimum = 0.0,
+                .maximum = 1.0,
+                .step = 0.01,
+            },
+            {
+                .id = Parameters::OSCILLATOR_ENABLED_PARAMETER_ID,
+                .name = "enabled",
+                .display_name = "Enabled",
+                .group = "Oscillator",
+                .kind = PARAMETER_KIND_BOOLEAN,
+            },
+        };
+        return metadata;
     }
 
     explicit Oscillator(const commrat::ModuleConfig& config)

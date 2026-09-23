@@ -62,6 +62,13 @@ struct TransportBlock {
 
 namespace CommRaT::Parameters {
 
+inline constexpr uint32_t TRANSPORT_TEMPO_PARAMETER_ID = 1;
+inline constexpr uint32_t TRANSPORT_INITIAL_BEAT_PARAMETER_ID = 2;
+inline constexpr uint32_t TRANSPORT_SAMPLE_RATE_PARAMETER_ID = 3;
+inline constexpr uint32_t TRANSPORT_BEATS_PER_BAR_PARAMETER_ID = 4;
+inline constexpr uint32_t TRANSPORT_BEAT_UNIT_PARAMETER_ID = 5;
+inline constexpr uint32_t TRANSPORT_STATE_PARAMETER_ID = 6;
+
 struct TransportSource {
     double tempo_bpm{120.0};
     double initial_beat_position{0.0};

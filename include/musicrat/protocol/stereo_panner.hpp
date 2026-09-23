@@ -7,6 +7,8 @@
 namespace CommRaT::Parameters {
 
 inline constexpr uint32_t PAN_PARAMETER_ID = 1;
+inline constexpr uint32_t PAN_LAW_PARAMETER_ID = 2;
+inline constexpr uint32_t PAN_SMOOTHING_PARAMETER_ID = 3;
 
 using PanLaw = uint8_t;
 

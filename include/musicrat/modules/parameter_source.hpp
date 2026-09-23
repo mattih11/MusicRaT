@@ -1,7 +1,8 @@
 #pragma once
 
+#include <musicrat/launcher/audio_format_validation.hpp>
 #include <musicrat/musicrat.hpp>
-#include <musicrat/protocol/gain.hpp>
+#include <musicrat/protocol/parameter_events.hpp>
 
 #include <cmath>
 
@@ -18,6 +19,51 @@ class ParameterSource : public MusicRaT::Module2<
         commrat::Params<Parameters::ParameterSource>>;
 
 public:
+    static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
+        using namespace musicrat::launcher;
+        DescriptorMetadata metadata{};
+        metadata.musicrat_ports.ports = {{
+            .id = "parameter_events",
+            .display_name = "Parameter Events",
+            .direction = PORT_DIRECTION_OUTPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_PARAMETER,
+        }};
+        metadata.musicrat_parameters.parameters = {
+            {
+                .id = Parameters::PARAMETER_SOURCE_ENDPOINT_ID_PARAMETER_ID,
+                .name = "source_endpoint_id",
+                .display_name = "Source Endpoint ID",
+                .group = "Event",
+                .kind = PARAMETER_KIND_INTEGER,
+                .minimum = 1.0,
+                .maximum = 4294967295.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::PARAMETER_SOURCE_PARAMETER_ID_PARAMETER_ID,
+                .name = "parameter_id",
+                .display_name = "Parameter ID",
+                .group = "Event",
+                .kind = PARAMETER_KIND_INTEGER,
+                .minimum = 1.0,
+                .maximum = 4294967295.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::PARAMETER_SOURCE_VALUE_PARAMETER_ID,
+                .name = "value",
+                .display_name = "Value",
+                .group = "Event",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .minimum = -16.0,
+                .maximum = 16.0,
+                .step = 0.01,
+            },
+        };
+        return metadata;
+    }
+
     explicit ParameterSource(const commrat::ModuleConfig& config)
         : Base(config) {
         normalize_params();

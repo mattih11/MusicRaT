@@ -21,8 +21,47 @@ class WavSink : public MusicRaT::Module2<
 
 public:
     static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
-        return musicrat::launcher::audio_sink_metadata(
+        using namespace musicrat::launcher;
+        auto metadata = audio_sink_metadata(
             "sample_rate_hz", "channel_count");
+        metadata.musicrat_ports.ports = {{
+            .id = "audio_in",
+            .display_name = "Audio In",
+            .direction = PORT_DIRECTION_INPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_AUDIO,
+        }};
+        metadata.musicrat_parameters.parameters = {
+            {
+                .id = Parameters::WAV_SINK_PATH_PARAMETER_ID,
+                .name = "path",
+                .display_name = "Output Path",
+                .group = "File",
+                .kind = PARAMETER_KIND_TEXT,
+            },
+            {
+                .id = Parameters::WAV_SINK_SAMPLE_RATE_PARAMETER_ID,
+                .name = "sample_rate_hz",
+                .display_name = "Sample Rate",
+                .group = "Audio",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "Hz",
+                .minimum = 8000.0,
+                .maximum = 192000.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::WAV_SINK_CHANNEL_COUNT_PARAMETER_ID,
+                .name = "channel_count",
+                .display_name = "Channels",
+                .group = "Audio",
+                .kind = PARAMETER_KIND_INTEGER,
+                .minimum = 1.0,
+                .maximum = static_cast<double>(Messages::AudioBlock::MAX_CHANNELS),
+                .step = 1.0,
+            },
+        };
+        return metadata;
     }
 
     explicit WavSink(const commrat::ModuleConfig& config)

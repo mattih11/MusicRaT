@@ -49,6 +49,12 @@ struct DeckControlEventBlock {
 
 namespace CommRaT::Parameters {
 
+inline constexpr uint32_t DECK_CONTROL_TYPE_PARAMETER_ID = 1;
+inline constexpr uint32_t DECK_CONTROL_VALUE_PARAMETER_ID = 2;
+inline constexpr uint32_t DECK_CONTROL_RAMP_FRAMES_PARAMETER_ID = 3;
+inline constexpr uint32_t DECK_CONTROL_QUANTIZATION_PARAMETER_ID = 4;
+inline constexpr uint32_t DECK_CONTROL_ENABLED_PARAMETER_ID = 5;
+
 struct DeckControlSource {
     CommRaT::Messages::DeckControlType type{
         CommRaT::Messages::DECK_CONTROL_PLAY};

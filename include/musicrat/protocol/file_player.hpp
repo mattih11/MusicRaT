@@ -35,6 +35,14 @@ struct UnloadMedia {
 
 namespace CommRaT::Parameters {
 
+inline constexpr uint32_t FILE_PLAYER_PATH_PARAMETER_ID = 1;
+inline constexpr uint32_t FILE_PLAYER_OUTPUT_SAMPLE_RATE_PARAMETER_ID = 2;
+inline constexpr uint32_t FILE_PLAYER_INITIAL_RATE_PARAMETER_ID = 3;
+inline constexpr uint32_t FILE_PLAYER_AUTOPLAY_PARAMETER_ID = 4;
+inline constexpr uint32_t FILE_PLAYER_PITCH_LOCK_PARAMETER_ID = 5;
+inline constexpr uint32_t FILE_PLAYER_TRANSPORT_SYNC_MODE_PARAMETER_ID = 6;
+inline constexpr uint32_t FILE_PLAYER_SYNC_RATE_RAMP_PARAMETER_ID = 7;
+
 struct FilePlayer {
     sertial::fixed_string<512> path{};
     double output_sample_rate_hz{musicrat::config::default_sample_rate_hz};

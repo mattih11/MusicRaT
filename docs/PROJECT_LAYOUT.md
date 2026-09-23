@@ -28,6 +28,8 @@ MusicRaT/
 │   ├── modules/                   # COMMRAT_MODULE_MAIN wrappers, one per binary
 │   ├── backends/                  # Audio/MIDI/HID/OSC platform implementations
 │   └── internal/                  # Non-public implementation details
+├── tools/
+│   └── application-designer/      # Pre-launch TypeScript graph editor prototype
 └── tests/
     ├── protocol/                  # Serialization and message-contract tests
     ├── dsp/                       # Kernel tests without CommRaT threads
@@ -82,6 +84,9 @@ flowchart TD
 - Decoder adapters implement `backends/media/decoder.hpp`; format-neutral decode-ahead and playback coordination remain templated over that contract.
 - `src/modules/` files contain only the minimal type alias and `COMMRAT_MODULE_MAIN` needed to produce one launchable binary.
 - `src/apps/` composes process-level tools and must not contain reusable DSP.
+- `tools/application-designer/` consumes generated descriptors and native
+    CommRaT application JSON. Its graph compiler remains independent of React;
+    it must not define another persistent graph format or runtime DSP contract.
 
 Cycles between these layers are not allowed.
 
@@ -183,7 +188,12 @@ Example application configs use descriptive snake-case filenames under `examples
 
 The top-level `CMakeLists.txt` may list the first few targets. As each area grows, move target declarations into matching files such as `src/modules/CMakeLists.txt` and `tests/CMakeLists.txt`; do not create this split before it removes meaningful clutter.
 
-Public installation will eventually install `include/musicrat/`, the generated `musicrat/config.hpp`, exported CMake targets, descriptors, and selected example configs. Private `src/` headers are never installed.
+Public installation will eventually install `include/musicrat/`, the generated
+`musicrat/config.hpp`, exported CMake targets, and selected example configs.
+Module executables install under `${CMAKE_INSTALL_BINDIR}` and generated
+descriptors under `${CMAKE_INSTALL_DATADIR}/musicrat/modules`; the application
+designer's local host discovers that data directory through the XDG search path.
+Private `src/` headers are never installed.
 
 EVL CMake presets and helper scripts belong in MusicRaT, while ISAR package and image recipes belong in RaTOS. Do not copy RaTOS recipes or SDK contents into this repository. See [EVL and RaTOS Integration](EVL_AND_RATOS.md) for the validation and packaging boundary.
 

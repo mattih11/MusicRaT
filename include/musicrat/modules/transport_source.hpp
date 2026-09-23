@@ -1,5 +1,6 @@
 #pragma once
 
+#include <musicrat/launcher/audio_format_validation.hpp>
 #include <musicrat/musicrat.hpp>
 
 #include <cmath>
@@ -19,6 +20,91 @@ class TransportSource : public MusicRaT::Module2<
         commrat::Params<Parameters::TransportSource>>;
 
 public:
+    static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
+        using namespace musicrat::launcher;
+        DescriptorMetadata metadata{};
+        metadata.musicrat_ports.ports = {{
+            .id = "transport",
+            .display_name = "Transport",
+            .direction = PORT_DIRECTION_OUTPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_TRANSPORT,
+        }};
+        metadata.musicrat_parameters.parameters = {
+            {
+                .id = Parameters::TRANSPORT_TEMPO_PARAMETER_ID,
+                .name = "tempo_bpm",
+                .display_name = "Tempo",
+                .group = "Transport",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "BPM",
+                .minimum = 20.0,
+                .maximum = 400.0,
+                .step = 0.1,
+            },
+            {
+                .id = Parameters::TRANSPORT_INITIAL_BEAT_PARAMETER_ID,
+                .name = "initial_beat_position",
+                .display_name = "Initial Beat",
+                .group = "Transport",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "beats",
+                .minimum = 0.0,
+                .maximum = 1000000000.0,
+                .step = 0.01,
+            },
+            {
+                .id = Parameters::TRANSPORT_SAMPLE_RATE_PARAMETER_ID,
+                .name = "sample_rate_hz",
+                .display_name = "Sample Rate",
+                .group = "Audio",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "Hz",
+                .minimum = 8000.0,
+                .maximum = 192000.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::TRANSPORT_BEATS_PER_BAR_PARAMETER_ID,
+                .name = "beats_per_bar",
+                .display_name = "Beats per Bar",
+                .group = "Meter",
+                .kind = PARAMETER_KIND_INTEGER,
+                .minimum = 1.0,
+                .maximum = 32.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::TRANSPORT_BEAT_UNIT_PARAMETER_ID,
+                .name = "beat_unit",
+                .display_name = "Beat Unit",
+                .group = "Meter",
+                .kind = PARAMETER_KIND_CHOICE,
+                .choices = {
+                    {.value = 1.0, .label = "Whole"},
+                    {.value = 2.0, .label = "Half"},
+                    {.value = 4.0, .label = "Quarter"},
+                    {.value = 8.0, .label = "Eighth"},
+                    {.value = 16.0, .label = "Sixteenth"},
+                },
+            },
+            {
+                .id = Parameters::TRANSPORT_STATE_PARAMETER_ID,
+                .name = "state",
+                .display_name = "Initial State",
+                .group = "Transport",
+                .kind = PARAMETER_KIND_CHOICE,
+                .choices = {
+                    {.value = Messages::TRANSPORT_STOPPED, .label = "Stopped"},
+                    {.value = Messages::TRANSPORT_PLAYING, .label = "Playing"},
+                    {.value = Messages::TRANSPORT_PAUSED, .label = "Paused"},
+                    {.value = Messages::TRANSPORT_RECORDING, .label = "Recording"},
+                },
+            },
+        };
+        return metadata;
+    }
+
     explicit TransportSource(const commrat::ModuleConfig& config)
         : Base(config)
         , period_ms_(static_cast<uint64_t>(config.period->count()))

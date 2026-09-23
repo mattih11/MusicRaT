@@ -23,6 +23,7 @@ Use [docs/EVL_AND_RATOS.md](../docs/EVL_AND_RATOS.md) for EVL portability, RaTOS
 - Imperative request/reply actions use commands associated with an output through `commrat::DataWithCommands`.
 - Streaming audio and control events use typed `Output<T>` and `Input<T>` connections.
 - Command-only dependencies use `commrat::Remote<T>`.
+- The pre-launch Application Designer lives under `tools/application-designer`; RatGUI is for runtime operation and LVGL is for on-device controls.
 
 ## Module Pattern
 
@@ -73,6 +74,8 @@ Keep DSP code platform-independent. Treat standard-Linux tests as necessary but 
 
 Use typed parameters for persistent state that appears in configurations, presets, and RatGUI. Parameter structs must be reflectable aggregates with bounded field types.
 
+Every configurable launchable module must publish `musicrat_parameters` metadata for its flat startup fields. Keep stable numeric parameter IDs with the owning protocol, use `text` for bounded string-backed values such as paths, and do not flatten nested aggregates such as `BeatGrid` until a structured editor contract exists. Only mark a parameter automatable when the module actually consumes it through a real-time parameter-event path.
+
 Use output-associated commands only for imperative operations such as reset or loading a prepared resource. A command must define a `Reply` type and be registered with `register_command_handler`.
 
 Do not introduce one command type per continuously changing knob when a timestamped control-event stream is appropriate.
@@ -85,6 +88,7 @@ Every independently launchable module must:
 2. Be declared with `commrat_module()` in CMake.
 3. Generate a complete `*.module.json` descriptor during native builds.
 4. Have at least one example application config when it participates in a user-facing graph.
+5. Publish `musicrat_ports` metadata for every physical output, input, synchronized input, and remote using stable IDs, exact positional indices, and the correct signal domain.
 
 Use CommRaT application descriptions directly:
 
@@ -95,7 +99,7 @@ Use CommRaT application descriptions directly:
 - `params` supplies typed startup parameters.
 - `companions` starts tools such as RatGUI.
 
-Do not create a separate MusicRaT graph format. RatGUI should read descriptors and edit the CommRaT application description.
+Do not create a separate MusicRaT graph format. The Application Designer reads installed descriptors and edits the pre-launch CommRaT application description directly. RatGUI consumes the launched application description for runtime operation rather than owning pre-launch graph authoring.
 
 ## External Control
 

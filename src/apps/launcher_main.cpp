@@ -4,5 +4,5 @@
 
 int main(int argc, char** argv) {
     return commrat::ProcessLauncher::main(
-        argc, argv, musicrat::launcher::validate_audio_formats);
+        argc, argv, musicrat::launcher::validate_application);
 }

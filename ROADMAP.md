@@ -61,7 +61,7 @@ Stabilize the contract that every later module will use.
   - [ ] Define producer/consumer behavior for every audio flag
 - [x] Make oscillator block size derive from sample rate and module period; reject capacity overflow
 - [x] Establish `musicrat/musicrat.hpp` as the application-registry umbrella and split protocol definitions by domain
-- [~] Define reusable parameter messages and stable module/parameter identifiers
+- [x] Define reusable parameter messages and stable module/parameter identifiers
 - [~] Define parameter validation, units, ranges, defaults, and smoothing behavior
 - [ ] Define stable device, endpoint, control, port, route, and binding identifiers
 - [ ] Define transport messages: play, stop, pause, seek, tempo, time signature, and position
@@ -69,7 +69,7 @@ Stabilize the contract that every later module will use.
 - [ ] Define fan-in, fan-out, backpressure, and dropped-block behavior in CommRaT terms
 - [x] Add oscillator timestamp and block sequence tracking
 - [x] Migrate the oscillator to CommRaT `Module2`, typed `Output<T>`, `Params<T>`, and `DataWithCommands`
-- [~] Build standalone module binaries with `commrat_module()` so complete `*.module.json` descriptors are generated
+- [x] Build standalone module binaries with `commrat_module()` so complete `*.module.json` descriptors are generated
 - [ ] Add reusable real-time utilities
   - Denormal handling
   - [x] Smoothed values and ramps
@@ -110,7 +110,7 @@ Streaming control signals such as knob motion, gates, note events, and automatio
 ### Launcher Work
 
 - [x] Add a generic `musicrat_launcher` using `commrat::ProcessLauncher::main`
-- [~] Add `commrat_module()` targets for every independently launchable MusicRaT module
+- [x] Add `commrat_module()` targets for every independently launchable MusicRaT module
 - [x] Keep module descriptor order and launch-config port order deterministic and documented
 - [~] Validate duplicate addresses, missing routes, type mismatches, missing remotes, and audio-format compatibility before launch
   - [x] Reject missing or incomplete descriptors and positional output/input/remote cardinality mismatches
@@ -126,8 +126,8 @@ Streaming control signals such as knob motion, gates, note events, and automatio
       - [x] Represent fixed channel transforms while preserving sample-rate and clock-domain propagation
       - [ ] Negotiate dynamic hardware and file endpoint formats
 - [ ] Decide whether production configs use JSON only or whether `ProcessLauncher` should gain the YAML support available in the in-process launcher
-- [ ] Add optional route labels or stable port IDs upstream if positional ports are insufficient for RatGUI editing
-- [ ] Have RatGUI edit/save the CommRaT application description and preserve unknown module-specific `params`
+- [x] Add schema-versioned stable physical port IDs and labels in MusicRaT descriptor metadata while preserving positional CommRaT routes
+- [~] Have the Application Designer edit/save the CommRaT application description and preserve unknown module-specific `params`
 - [ ] Have RatGUI launch as a configured `companion`, receiving the same application description path
 - [ ] Define safe runtime graph-edit behavior; the current launcher topology is startup-time configuration
 
@@ -152,12 +152,24 @@ while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
 
 - [ ] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
-- [ ] Add rich parameter descriptors for control generation, mapping, automation, and display
+  - [x] Add schema-versioned stable IDs and labels for physical module ports
+  - [x] Expose `NoteEventBlock` inputs as validated note-domain ports
+- [~] Add rich parameter descriptors for control generation, mapping, automation, and display
+  - [x] Add IDs, names, groups, kinds, units, ranges, steps, display scales, choices, and automation/read-only flags
+  - [x] Publish flat startup parameter metadata for every configurable launchable module, including bounded text-backed paths
+  - [ ] Add frequency/custom display mappings and explicit smoothing policy
 - [ ] Define bounded semantic control events and parameter-state feedback with origin IDs
 - [ ] Define serializable device, endpoint, binding, transform, and surface schemas
 - [ ] Implement and test a headless mapping engine independent of GUI and hardware backends
 - [ ] Extend project validation and round-trip persistence for bindings and presentation state
-- [ ] Have the designer directly edit pre-launch CommRaT module and route JSON without an intermediate graph format
+- [~] Have the designer directly edit pre-launch CommRaT module and route JSON without an intermediate graph format
+  - [x] Add the initial React/TypeScript editor under `tools/application-designer`
+  - [x] Import descriptors/configs, validate typed stable-ID edges, and export positional CommRaT routes
+  - [x] Generate typed startup parameter controls and preserve edited values through CommRaT JSON export
+  - [x] Install descriptors to `${CMAKE_INSTALL_DATADIR}/musicrat/modules`
+  - [~] Add an XDG-aware local catalog service, atomic writes, and launcher integration
+    - [x] Discover, validate, and serve installed descriptors
+    - [ ] Add atomic project writes and launcher lifecycle control
 - [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture
 - [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
 

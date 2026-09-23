@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(MusicRaT VERSION 1.0.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -357,6 +359,7 @@ if(BUILD_MUSICRAT)
         musicrat_oscillator
         musicrat_parameter_source
         musicrat_deck_control_source
+        musicrat_transport_source
         musicrat_gain
         musicrat_stereo_panner
         musicrat_null_sink
@@ -365,7 +368,24 @@ if(BUILD_MUSICRAT)
         musicrat_level_meter
         musicrat_telemetry_sink
         musicrat_launcher
-        DESTINATION bin)
+        DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
+    function(musicrat_install_module_descriptor target module_class)
+        install(CODE
+            "set(MUSICRAT_DESCRIPTOR_SOURCE \"${CMAKE_CURRENT_BINARY_DIR}/${module_class}.module.json\")\nset(MUSICRAT_DESCRIPTOR_BINARY \"${CMAKE_INSTALL_BINDIR}/$<TARGET_FILE_NAME:${target}>\")\nset(MUSICRAT_DESCRIPTOR_DESTINATION \"${CMAKE_INSTALL_DATADIR}/musicrat/modules/${module_class}.module.json\")\ninclude(\"${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallModuleDescriptor.cmake\")")
+    endfunction()
+
+    musicrat_install_module_descriptor(musicrat_oscillator MusicRaTSineOscillator)
+    musicrat_install_module_descriptor(musicrat_parameter_source MusicRaTParameterSource)
+    musicrat_install_module_descriptor(musicrat_deck_control_source MusicRaTDeckControlSource)
+    musicrat_install_module_descriptor(musicrat_transport_source MusicRaTTransportSource)
+    musicrat_install_module_descriptor(musicrat_gain MusicRaTGain)
+    musicrat_install_module_descriptor(musicrat_stereo_panner MusicRaTStereoPanner)
+    musicrat_install_module_descriptor(musicrat_null_sink MusicRaTNullSink)
+    musicrat_install_module_descriptor(musicrat_wav_sink MusicRaTWavSink)
+    musicrat_install_module_descriptor(musicrat_audio_file_player MusicRaTAudioFilePlayer)
+    musicrat_install_module_descriptor(musicrat_level_meter MusicRaTLevelMeter)
+    musicrat_install_module_descriptor(musicrat_telemetry_sink MusicRaTTelemetrySink)
 endif()
 
 include(CTest)
@@ -538,7 +558,22 @@ if(BUILD_TESTING)
     add_test(NAME musicrat.integration.audio_format_validation
         COMMAND musicrat_audio_format_validation_test)
 
+    add_executable(musicrat_module_metadata_test
+        tests/integration/module_metadata_test.cpp)
+    target_link_libraries(musicrat_module_metadata_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.integration.module_metadata
+        COMMAND musicrat_module_metadata_test)
+
     if(TARGET musicrat_launcher)
+        add_test(
+            NAME musicrat.integration.install_descriptors
+            COMMAND ${CMAKE_COMMAND}
+                "-DBUILD_DIR=${PROJECT_BINARY_DIR}"
+                "-DINSTALL_PREFIX=${PROJECT_BINARY_DIR}/test-install"
+                "-DINSTALL_BINDIR=${CMAKE_INSTALL_BINDIR}"
+                "-DINSTALL_DATADIR=${CMAKE_INSTALL_DATADIR}"
+                -P "${PROJECT_SOURCE_DIR}/tests/integration/install_descriptors_test.cmake"
+        )
         add_test(
             NAME musicrat.integration.reject_incompatible_audio_format
             COMMAND ${CMAKE_COMMAND}

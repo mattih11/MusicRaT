@@ -1,5 +1,6 @@
 #pragma once
 
+#include <musicrat/launcher/audio_format_validation.hpp>
 #include <musicrat/musicrat.hpp>
 #include <musicrat/utility/audio_block.hpp>
 
@@ -14,6 +15,19 @@ class NullSink : public MusicRaT::Module2<
     using Base = MusicRaT::Module2<commrat::Input<Messages::AudioBlock>>;
 
 public:
+    static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
+        using namespace musicrat::launcher;
+        DescriptorMetadata metadata{};
+        metadata.musicrat_ports.ports = {{
+            .id = "audio_in",
+            .display_name = "Audio In",
+            .direction = PORT_DIRECTION_INPUT,
+            .port_index = 0,
+            .domain = PORT_DOMAIN_AUDIO,
+        }};
+        return metadata;
+    }
+
     explicit NullSink(const commrat::ModuleConfig& config)
         : Base(config) {}
 

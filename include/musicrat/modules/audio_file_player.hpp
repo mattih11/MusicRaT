@@ -43,7 +43,110 @@ class AudioFilePlayer : public MusicRaT::Module2<
 
 public:
     static musicrat::launcher::DescriptorMetadata descriptor_metadata() {
-        return musicrat::launcher::audio_source_metadata("output_sample_rate_hz");
+        using namespace musicrat::launcher;
+        auto metadata = audio_source_metadata("output_sample_rate_hz");
+        metadata.musicrat_ports.ports = {
+            {
+                .id = "audio_out",
+                .display_name = "Audio Out",
+                .direction = PORT_DIRECTION_OUTPUT,
+                .port_index = 0,
+                .domain = PORT_DOMAIN_AUDIO,
+            },
+            {
+                .id = "playback_status",
+                .display_name = "Playback Status",
+                .direction = PORT_DIRECTION_OUTPUT,
+                .port_index = 1,
+                .domain = PORT_DOMAIN_TELEMETRY,
+            },
+            {
+                .id = "deck_control",
+                .display_name = "Deck Control",
+                .direction = PORT_DIRECTION_SYNCED_INPUT,
+                .port_index = 0,
+                .domain = PORT_DOMAIN_CONTROL,
+                .required = false,
+            },
+            {
+                .id = "transport",
+                .display_name = "Transport",
+                .direction = PORT_DIRECTION_SYNCED_INPUT,
+                .port_index = 1,
+                .domain = PORT_DOMAIN_TRANSPORT,
+                .required = false,
+            },
+        };
+        metadata.musicrat_parameters.parameters = {
+            {
+                .id = Parameters::FILE_PLAYER_PATH_PARAMETER_ID,
+                .name = "path",
+                .display_name = "Media Path",
+                .group = "Media",
+                .kind = PARAMETER_KIND_TEXT,
+            },
+            {
+                .id = Parameters::FILE_PLAYER_OUTPUT_SAMPLE_RATE_PARAMETER_ID,
+                .name = "output_sample_rate_hz",
+                .display_name = "Output Sample Rate",
+                .group = "Audio",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "Hz",
+                .minimum = 8000.0,
+                .maximum = 192000.0,
+                .step = 1.0,
+            },
+            {
+                .id = Parameters::FILE_PLAYER_INITIAL_RATE_PARAMETER_ID,
+                .name = "initial_rate",
+                .display_name = "Initial Rate",
+                .group = "Playback",
+                .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "x",
+                .minimum = 0.25,
+                .maximum = 4.0,
+                .step = 0.01,
+            },
+            {
+                .id = Parameters::FILE_PLAYER_AUTOPLAY_PARAMETER_ID,
+                .name = "autoplay",
+                .display_name = "Autoplay",
+                .group = "Playback",
+                .kind = PARAMETER_KIND_BOOLEAN,
+            },
+            {
+                .id = Parameters::FILE_PLAYER_PITCH_LOCK_PARAMETER_ID,
+                .name = "pitch_lock",
+                .display_name = "Pitch Lock",
+                .group = "Playback",
+                .kind = PARAMETER_KIND_BOOLEAN,
+            },
+            {
+                .id = Parameters::FILE_PLAYER_TRANSPORT_SYNC_MODE_PARAMETER_ID,
+                .name = "transport_sync_mode",
+                .display_name = "Transport Sync",
+                .group = "Transport",
+                .kind = PARAMETER_KIND_CHOICE,
+                .choices = {
+                    {.value = Messages::TRANSPORT_SYNC_OFF, .label = "Off"},
+                    {.value = Messages::TRANSPORT_SYNC_TEMPO, .label = "Tempo"},
+                    {.value = Messages::TRANSPORT_SYNC_BEAT, .label = "Beat"},
+                    {.value = Messages::TRANSPORT_SYNC_BAR, .label = "Bar"},
+                },
+            },
+            {
+                .id = Parameters::FILE_PLAYER_SYNC_RATE_RAMP_PARAMETER_ID,
+                .name = "sync_rate_ramp_frames",
+                .display_name = "Sync Rate Ramp",
+                .group = "Transport",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "frames",
+                .minimum = 0.0,
+                .maximum = 4294967295.0,
+                .step = 1.0,
+            },
+        };
+        return metadata;
     }
 
     explicit AudioFilePlayer(const commrat::ModuleConfig& config)
