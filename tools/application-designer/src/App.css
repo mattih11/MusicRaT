@@ -25,12 +25,15 @@
 .app-name { display: flex; align-items: center; border: 1px solid var(--line); background: white; height: 36px; }
 .app-name span { padding: 0 10px; color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; }
 .app-name input { min-width: 0; width: 100%; height: 100%; border: 0; border-left: 1px solid var(--line); padding: 0 10px; outline: 0; font-family: 'DM Mono', monospace; font-size: 12px; }
-.toolbar { display: flex; justify-content: flex-end; gap: 7px; }
+.toolbar { min-width: 0; display: flex; justify-content: flex-end; gap: 7px; }
 button { border: 0; cursor: pointer; }
 .icon-button, .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 11px; border: 1px solid var(--line); background: white; font-size: 12px; font-weight: 700; }
 .icon-button:hover { border-color: #8d9894; }
 .primary-button { background: var(--forest); border-color: var(--forest); color: white; }
 .primary-button:hover { background: #183d37; }
+.icon-button:disabled, .primary-button:disabled { cursor: default; opacity: .45; }
+.compact-button { width: 36px; padding: 0; flex: 0 0 36px; }
+.project-picker { min-width: 0; width: 138px; height: 36px; flex: 0 0 138px; border: 1px solid var(--line); background: white; padding: 0 8px; color: var(--ink); font: 500 11px 'DM Mono', monospace; }
 
 .catalog-panel, .inspector-panel { min-width: 0; background: var(--panel); z-index: 3; overflow: auto; }
 .catalog-panel { border-right: 1px solid var(--line); }
@@ -95,6 +98,7 @@ button { border: 0; cursor: pointer; }
   .topbar { grid-template-columns: 1fr auto; gap: 8px; padding: 0 10px; }
   .app-name { display: none; }
   .icon-button span { display: none; }
+  .project-picker { width: 112px; flex-basis: 112px; }
   .catalog-panel { grid-row: 2 / 4; }
   .canvas { height: calc(100vh - 272px); }
   .inspector-panel { grid-column: 2; grid-row: 3; border-left: 0; border-top: 1px solid var(--line); }
@@ -106,7 +110,10 @@ button { border: 0; cursor: pointer; }
 
 @media (max-width: 620px) {
   .designer-shell { grid-template: 58px 150px minmax(0, 1fr) 150px 34px / 1fr; }
-  .brand strong { display: none; }
+  .brand span, .brand strong { display: none; }
+  .project-picker { width: 82px; flex-basis: 82px; }
+  .primary-button { width: 36px; padding: 0; }
+  .primary-button span { display: none; }
   .catalog-panel { grid-column: 1; grid-row: 2; border-right: 0; border-bottom: 1px solid var(--line); }
   .catalog-panel .panel-heading, .domain-key { display: none; }
   .search { margin: 8px; }

@@ -169,7 +169,8 @@ application, its hardware and GUI controls, and its presentation surfaces.
   - [x] Install descriptors to `${CMAKE_INSTALL_DATADIR}/musicrat/modules`
   - [~] Add an XDG-aware local catalog service, atomic writes, and launcher integration
     - [x] Discover, validate, and serve installed descriptors
-    - [ ] Add atomic project writes and launcher lifecycle control
+    - [x] Add revision-aware atomic project writes in the local host
+    - [ ] Add launcher lifecycle control
 - [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture
 - [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
 

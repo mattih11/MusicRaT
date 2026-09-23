@@ -21,7 +21,9 @@ npm run dev
 Run the local descriptor catalog in a second terminal:
 
 ```bash
-MUSICRAT_MODULE_PATH=/path/to/modules npm run host
+MUSICRAT_MODULE_PATH=/path/to/modules \
+MUSICRAT_PROJECT_DIR=/path/to/projects \
+npm run host
 ```
 
 Vite proxies `/api/catalog` to the host on port 4174. The host searches
@@ -30,5 +32,9 @@ MusicRaT installation data directory in that order. A production build is also
 served directly by the host at `http://127.0.0.1:4174`.
 
 Without the host, the browser uses an explicit demonstration catalog. Project
-files and descriptors can also be loaded manually. Process launching and atomic
-project writes remain future host capabilities.
+files and descriptors can also be loaded manually. With the host, projects are
+listed, loaded, and saved atomically with revision checks. The default project
+directory is `$XDG_CONFIG_HOME/musicrat/applications`, falling back to
+`~/.config/musicrat/applications`; `MUSICRAT_PROJECT_DIR` or
+`--project-dir=<path>` overrides it. Process launching remains a future host
+capability.

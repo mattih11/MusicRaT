@@ -42,4 +42,13 @@ describe('application graph compiler', () => {
     expect(compiled.modules.find((module) => module.name === 'WavSink_1')?.params?.path)
       .toBe('/tmp/rendered mix.wav')
   })
+
+  it('serializes incomplete drafts without weakening launch-ready export', () => {
+    const workspace = importApplication(demoApplication, demoDescriptors)
+    workspace.connections = workspace.connections.filter((connection) =>
+      connection.target_module_id !== 'WavSink_1')
+
+    expect(() => compileApplication(workspace)).toThrow('Audio In requires a connection.')
+    expect(compileApplication(workspace, { validate: false }).modules).toHaveLength(4)
+  })
 })

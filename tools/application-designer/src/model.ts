@@ -195,9 +195,14 @@ function inputKey(direction: PortDirection): 'inputs' | 'synced_inputs' | 'remot
   return 'inputs'
 }
 
-export function compileApplication(workspace: DesignerWorkspace): ApplicationDocument {
-  const issues = validateWorkspace(workspace)
-  if (issues.length > 0) throw new Error(issues[0].message)
+export function compileApplication(
+  workspace: DesignerWorkspace,
+  options: { validate?: boolean } = {},
+): ApplicationDocument {
+  if (options.validate !== false) {
+    const issues = validateWorkspace(workspace)
+    if (issues.length > 0) throw new Error(issues[0].message)
+  }
 
   const outputAddresses = new Map<string, Address>()
   let instanceId = 1

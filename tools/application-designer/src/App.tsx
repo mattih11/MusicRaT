@@ -14,7 +14,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Download, FileJson, FolderOpen, Plus, Search, Upload, Waves } from 'lucide-react'
+import { Download, FileJson, FolderOpen, Plus, Save, Search, Upload, Waves } from 'lucide-react'
 import './App.css'
 import { demoApplication, demoDescriptors } from './demo'
 import { ModuleNodeView, type ModuleNode } from './ModuleNode'
@@ -30,6 +30,13 @@ import {
   type DesignerWorkspace,
   type ModuleDescriptor,
 } from './model'
+import {
+  listHostedProjects,
+  loadHostedProject,
+  projectFilename,
+  saveHostedProject,
+  type ProjectSummary,
+} from './project-api'
 
 const nodeTypes = { musicratModule: ModuleNodeView }
 
@@ -95,6 +102,10 @@ function App() {
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('Demo graph is valid and ready to export.')
   const [catalogSource, setCatalogSource] = useState<'demo' | 'installed'>('demo')
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [selectedProjectName, setSelectedProjectName] = useState('')
+  const [hostedProject, setHostedProject] = useState<{ name: string; revision: string } | null>(null)
+  const [saving, setSaving] = useState(false)
   const descriptorInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
 
@@ -120,12 +131,22 @@ function App() {
         setNodes([])
         setEdges([])
         setSelectedId(null)
+        setHostedProject(null)
+        setSelectedProjectName('')
         setMessage(`Loaded ${result.descriptors.length} installed module descriptors${result.warnings.length ? ` with ${result.warnings.length} warnings` : ''}.`)
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         setMessage('Catalog host unavailable; using the demo catalog.')
       })
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    listHostedProjects(controller.signal)
+      .then((result) => setProjects(result.projects))
+      .catch(() => {})
     return () => controller.abort()
   }, [])
 
@@ -188,9 +209,49 @@ function App() {
       setAppName(loaded.appName)
       setNodes(workspaceToNodes(loaded))
       setEdges(workspaceToEdges(loaded))
+      setHostedProject(null)
+      setSelectedProjectName('')
       setMessage(`Opened ${application.app_name}.`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read application.')
+    }
+  }
+
+  const openHostedProject = async () => {
+    if (!selectedProjectName) return
+    try {
+      const project = await loadHostedProject(selectedProjectName)
+      const loaded = importApplication(project.document, catalog)
+      setAppName(loaded.appName)
+      setNodes(workspaceToNodes(loaded))
+      setEdges(workspaceToEdges(loaded))
+      setSelectedId(null)
+      setHostedProject({ name: project.name, revision: project.revision })
+      setMessage(`Opened ${project.name}.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not open hosted project.')
+    }
+  }
+
+  const saveProject = async () => {
+    try {
+      const document = compileApplication(workspace, { validate: false })
+      const name = hostedProject?.name ?? projectFilename(document.app_name)
+      setSaving(true)
+      const saved = await saveHostedProject(
+        name,
+        document,
+        hostedProject?.revision ?? null,
+      )
+      setHostedProject({ name: saved.name, revision: saved.revision })
+      setSelectedProjectName(saved.name)
+      const result = await listHostedProjects()
+      setProjects(result.projects)
+      setMessage(`Saved ${saved.name}.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save project.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -221,9 +282,15 @@ function App() {
         <div className="toolbar">
           <input ref={descriptorInput} hidden type="file" accept="application/json,.json" multiple onChange={(event) => void loadDescriptors(event.target.files)} />
           <input ref={projectInput} hidden type="file" accept="application/json,.json" onChange={(event) => void loadProject(event.target.files)} />
-          <button className="icon-button" title="Load module descriptors" onClick={() => descriptorInput.current?.click()}><Upload size={17} /><span>Descriptors</span></button>
-          <button className="icon-button" title="Open application JSON" onClick={() => projectInput.current?.click()}><FolderOpen size={17} /><span>Open</span></button>
-          <button className="primary-button" onClick={exportProject}><Download size={17} /><span>Export JSON</span></button>
+          <select className="project-picker" aria-label="Saved projects" value={selectedProjectName} onChange={(event) => setSelectedProjectName(event.target.value)}>
+            <option value="">Saved projects</option>
+            {projects.map((project) => <option key={project.name} value={project.name}>{project.app_name}</option>)}
+          </select>
+          <button className="icon-button compact-button" title="Open saved project" aria-label="Open saved project" disabled={!selectedProjectName} onClick={() => void openHostedProject()}><FolderOpen size={17} /></button>
+          <button className="icon-button compact-button" title="Load module descriptors" aria-label="Load module descriptors" onClick={() => descriptorInput.current?.click()}><Upload size={17} /></button>
+          <button className="icon-button compact-button" title="Import application JSON" aria-label="Import application JSON" onClick={() => projectInput.current?.click()}><FolderOpen size={17} /></button>
+          <button className="primary-button" title="Save project" aria-label="Save project" disabled={saving} onClick={() => void saveProject()}><Save size={17} /><span>{saving ? 'Saving' : 'Save'}</span></button>
+          <button className="icon-button compact-button" title="Download application JSON" aria-label="Download application JSON" onClick={exportProject}><Download size={17} /></button>
         </div>
       </header>
 

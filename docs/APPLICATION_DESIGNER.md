@@ -302,8 +302,20 @@ covered by unit tests, including semantic note routing.
 
 The built-in note-aware catalog is a design fixture until launchable note-source
 and instrument modules exist. The local host now provides automatic installed
-descriptor discovery. Atomic project writes and process launch remain future
-host capabilities.
+descriptor discovery and revision-aware atomic project persistence. Process
+launch remains a future host capability.
+
+Hosted projects use `GET /api/projects` for discovery,
+`GET /api/projects/<name>` for loading, and `PUT /api/projects/<name>` for
+saving. Each load/save returns a content revision. Saves must provide that
+revision, or `null` when creating a file, so stale editors cannot overwrite a
+newer project. The host writes and synchronizes a temporary file in the project
+directory before atomically renaming it over the destination.
+
+The project directory defaults to
+`$XDG_CONFIG_HOME/musicrat/applications`, or
+`~/.config/musicrat/applications` when `XDG_CONFIG_HOME` is unset. Deployments
+may override it with `MUSICRAT_PROJECT_DIR` or `--project-dir=<path>`.
 
 ### 10.2 Installed Descriptor Discovery
 
