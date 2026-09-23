@@ -18,9 +18,9 @@ endif()
 file(GLOB descriptors
     "${INSTALL_PREFIX}/${INSTALL_DATADIR}/musicrat/modules/MusicRaT*.module.json")
 list(LENGTH descriptors descriptor_count)
-if(NOT descriptor_count EQUAL 11)
+if(NOT descriptor_count EQUAL 12)
     message(FATAL_ERROR
-        "Expected 11 installed module descriptors, found ${descriptor_count}")
+    "Expected 12 installed module descriptors, found ${descriptor_count}")
 endif()
 
 foreach(descriptor IN LISTS descriptors)

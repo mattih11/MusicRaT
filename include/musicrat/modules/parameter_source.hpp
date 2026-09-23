@@ -74,6 +74,7 @@ protected:
         output.events.clear();
         output.timestamp_ns = commrat::Time::now();
         output.sequence_number = sequence_number_++;
+        output.flags = 0;
         output.events.push_back(Messages::ParameterEvent{
             .source_endpoint_id = this->params_.source_endpoint_id,
             .parameter_id = this->params_.parameter_id,

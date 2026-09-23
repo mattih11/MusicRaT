@@ -1,6 +1,48 @@
 import { describe, expect, it } from 'vitest'
 import { demoApplication, demoDescriptors } from './demo'
-import { compileApplication, importApplication, validateConnection } from './model'
+import {
+  compileApplication,
+  importApplication,
+  validateConnection,
+  validateWorkspace,
+  type MusicRaTControlProject,
+} from './model'
+
+const controlProject: MusicRaTControlProject = {
+  schema_version: 1,
+  devices: [{
+    id: 'fader-bank',
+    display_name: 'Fader Bank',
+    kind: 'hardware',
+    endpoints: [{
+      id: 'fader-1',
+      display_name: 'Fader 1',
+      direction: 'input',
+      domain: 'unipolar',
+      minimum: 0,
+      maximum: 1,
+    }],
+  }],
+  bindings: [{
+    id: 'instrument-gain',
+    source: { owner_id: 'fader-bank', endpoint_id: 'fader-1' },
+    target: { module_id: 'Instrument_1', parameter_id: 1 },
+    mode: 'absolute',
+    transform: { scale: 1, offset: 0, curve: 'linear' },
+  }],
+  surfaces: [{
+    id: 'main-surface',
+    display_name: 'Main Surface',
+    target: 'ratgui',
+    endpoints: [],
+    widgets: [{
+      id: 'gain-widget',
+      kind: 'fader',
+      display_name: 'Gain',
+      binding_id: 'instrument-gain',
+    }],
+  }],
+}
 
 describe('application graph compiler', () => {
   it('round-trips native CommRaT routes through stable port IDs', () => {
@@ -50,5 +92,26 @@ describe('application graph compiler', () => {
 
     expect(() => compileApplication(workspace)).toThrow('Audio In requires a connection.')
     expect(compileApplication(workspace, { validate: false }).modules).toHaveLength(4)
+  })
+
+  it('round-trips the schema-versioned control project extension', () => {
+    const application = structuredClone(demoApplication)
+    application.musicrat_control = controlProject
+
+    const workspace = importApplication(application, demoDescriptors)
+    expect(validateWorkspace(workspace)).toEqual([])
+    expect(compileApplication(workspace).musicrat_control).toEqual(controlProject)
+  })
+
+  it('rejects unresolved control references', () => {
+    const application = structuredClone(demoApplication)
+    application.musicrat_control = structuredClone(controlProject)
+    application.musicrat_control.bindings[0].source.endpoint_id = 'missing'
+
+    const issues = validateWorkspace(importApplication(application, demoDescriptors))
+    expect(issues).toContainEqual({
+      target: 'instrument-gain',
+      message: 'Binding source endpoint does not exist.',
+    })
   })
 })

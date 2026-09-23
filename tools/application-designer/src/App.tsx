@@ -16,6 +16,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { Download, FileJson, FolderOpen, Plus, Save, Search, Upload, Waves } from 'lucide-react'
 import './App.css'
+import { compileLaunchApplication } from './control-compiler'
 import { demoApplication, demoDescriptors } from './demo'
 import { ModuleNodeView, type ModuleNode } from './ModuleNode'
 import {
@@ -70,12 +71,17 @@ function edgeToConnection(edge: Edge): DesignerConnection {
   }
 }
 
-function currentWorkspace(appName: string, nodes: ModuleNode[], edges: Edge[]): DesignerWorkspace {
+function currentWorkspace(
+  appName: string,
+  nodes: ModuleNode[],
+  edges: Edge[],
+  source: ApplicationDocument,
+): DesignerWorkspace {
   return {
     appName,
     modules: nodes.map((node) => ({ ...node.data, position: node.position })),
     connections: edges.map(edgeToConnection),
-    source: { app_name: appName, modules: nodes.map((node) => node.data.source) },
+    source,
   }
 }
 
@@ -96,6 +102,7 @@ function App() {
   const initialWorkspace = importApplication(demoApplication, demoDescriptors)
   const [catalog, setCatalog] = useState(demoDescriptors)
   const [appName, setAppName] = useState(initialWorkspace.appName)
+  const [sourceDocument, setSourceDocument] = useState(initialWorkspace.source)
   const [nodes, setNodes] = useState<ModuleNode[]>(workspaceToNodes(initialWorkspace))
   const [edges, setEdges] = useState<Edge[]>(workspaceToEdges(initialWorkspace))
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -109,7 +116,7 @@ function App() {
   const descriptorInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
 
-  const workspace = currentWorkspace(appName, nodes, edges)
+  const workspace = currentWorkspace(appName, nodes, edges, sourceDocument)
   const issues = validateWorkspace(workspace)
   const selected = nodes.find((node) => node.id === selectedId)
 
@@ -128,6 +135,7 @@ function App() {
         setCatalog(result.descriptors)
         setCatalogSource('installed')
         setAppName('UntitledMusicRaTApplication')
+        setSourceDocument({ app_name: 'UntitledMusicRaTApplication', modules: [] })
         setNodes([])
         setEdges([])
         setSelectedId(null)
@@ -207,6 +215,7 @@ function App() {
       const [application] = await readJsonFiles(files) as ApplicationDocument[]
       const loaded = importApplication(application, catalog)
       setAppName(loaded.appName)
+      setSourceDocument(loaded.source)
       setNodes(workspaceToNodes(loaded))
       setEdges(workspaceToEdges(loaded))
       setHostedProject(null)
@@ -223,6 +232,7 @@ function App() {
       const project = await loadHostedProject(selectedProjectName)
       const loaded = importApplication(project.document, catalog)
       setAppName(loaded.appName)
+      setSourceDocument(loaded.source)
       setNodes(workspaceToNodes(loaded))
       setEdges(workspaceToEdges(loaded))
       setSelectedId(null)
@@ -257,7 +267,10 @@ function App() {
 
   const exportProject = () => {
     try {
-      downloadJson(`${appName || 'musicrat-application'}.json`, compileApplication(workspace))
+      downloadJson(
+        `${appName || 'musicrat-application'}.json`,
+        compileLaunchApplication(workspace),
+      )
       setMessage('CommRaT application JSON exported.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Application is invalid.')

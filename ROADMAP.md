@@ -151,26 +151,36 @@ before implementing further DSP modules. The implementation remains generic,
 while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
 
-- [ ] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
+**Next implementation focus:** add semantic control adapter configuration and a
+virtual control source so a generated mapper route can be exercised end to end.
+This does not give the designer ownership of application lifecycle.
+
+- [~] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
   - [x] Add schema-versioned stable IDs and labels for physical module ports
   - [x] Expose `NoteEventBlock` inputs as validated note-domain ports
+  - [x] Define bounded runtime device, endpoint, origin, and binding IDs with zero reserved as unspecified
 - [~] Add rich parameter descriptors for control generation, mapping, automation, and display
   - [x] Add IDs, names, groups, kinds, units, ranges, steps, display scales, choices, and automation/read-only flags
   - [x] Publish flat startup parameter metadata for every configurable launchable module, including bounded text-backed paths
   - [ ] Add frequency/custom display mappings and explicit smoothing policy
-- [ ] Define bounded semantic control events and parameter-state feedback with origin IDs
-- [ ] Define serializable device, endpoint, binding, transform, and surface schemas
-- [ ] Implement and test a headless mapping engine independent of GUI and hardware backends
-- [ ] Extend project validation and round-trip persistence for bindings and presentation state
+- [x] Define bounded semantic control events and parameter-state feedback with origin IDs
+- [x] Define serializable device, endpoint, binding, transform, and surface schemas
+- [x] Implement and test a headless mapping engine independent of GUI and hardware backends
+  - [x] Wrap the kernel in a launchable `MusicRaTControlMapper` module
+  - [x] Compile stable project IDs and transforms into bounded mapper parameters
+  - [x] Materialize generated mapper modules and positional routes during strict export
+- [~] Extend project validation and round-trip persistence for bindings and presentation state
+  - [x] Validate and preserve devices, endpoints, bindings, transforms, surfaces, and widgets
+  - [ ] Add designer editors for bindings and presentation state
 - [~] Have the designer directly edit pre-launch CommRaT module and route JSON without an intermediate graph format
   - [x] Add the initial React/TypeScript editor under `tools/application-designer`
   - [x] Import descriptors/configs, validate typed stable-ID edges, and export positional CommRaT routes
   - [x] Generate typed startup parameter controls and preserve edited values through CommRaT JSON export
   - [x] Install descriptors to `${CMAKE_INSTALL_DATADIR}/musicrat/modules`
-  - [~] Add an XDG-aware local catalog service, atomic writes, and launcher integration
+  - [x] Add an XDG-aware local catalog service and atomic project writes
     - [x] Discover, validate, and serve installed descriptors
     - [x] Add revision-aware atomic project writes in the local host
-    - [ ] Add launcher lifecycle control
+  - [ ] Define a future handoff to an external launcher/controller after runtime ownership and failure-recovery semantics are specified; the designer does not directly own application lifecycle today
 - [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture
 - [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
 

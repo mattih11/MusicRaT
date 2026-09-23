@@ -89,6 +89,12 @@ inline std::optional<std::string> payload_domain(const std::string& payload) {
     if (payload == "CommRaT::Messages::DeckControlEventBlock") {
         return PORT_DOMAIN_CONTROL;
     }
+    if (payload == "CommRaT::Messages::ControlEventBlock") {
+        return PORT_DOMAIN_CONTROL;
+    }
+    if (payload == "CommRaT::Messages::ParameterStateBlock") {
+        return PORT_DOMAIN_PARAMETER;
+    }
     if (payload == "CommRaT::Messages::TransportBlock") {
         return PORT_DOMAIN_TRANSPORT;
     }

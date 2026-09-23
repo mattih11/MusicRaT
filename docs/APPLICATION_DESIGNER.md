@@ -149,15 +149,32 @@ semantic target. It stores:
 - Stable binding ID, source endpoint ID, and target ID
 - Absolute, relative, toggle, momentary, gate, trigger, or choice mode
 - Scale, offset, inversion, dead zone, curve, quantization, and hysteresis
-- Pickup or soft-takeover policy
+- Immediate or match pickup policy and tolerance
 - Optional modifier, bank, page, MIDI-channel, or condition rules
 - Arbitration priority for targets with multiple writers
 - Optional feedback destination and loop-suppression origin ID
 
-The mapping engine is independent of every GUI and hardware backend. It converts
-semantic controls to target-oriented events and applies deterministic ordering,
-coalescing, overflow, and late-event policies. Parameter smoothing remains at
-the target boundary.
+The headless mapping kernel is independent of every GUI, hardware backend, and
+CommRaT lifecycle. It converts semantic controls to target-oriented events,
+applies the configured transforms, preserves origin and binding IDs, maintains
+bounded relative/toggle/pickup state, accepts authoritative state feedback, and
+orders output deterministically. Output overflow is explicit and does not
+advance state for a value the target did not receive. Coalescing and late-event
+policy remain future work. Parameter smoothing remains at the target boundary.
+
+Strict launch export resolves stable project strings into numeric runtime IDs
+and materializes `MusicRaTControlMapper` modules in the native CommRaT
+application description. Bindings are grouped by source owner and target
+module, compiled in stable binding-ID order, and translated to exact bounded
+startup parameters. Generated mappers are ordered before their target consumers
+and their output is assigned to the target's positional parameter-event input.
+Draft saves retain only the editable string schema and do not persist generated
+modules.
+
+The current mapper has one primary control input. Launch export therefore
+rejects bindings from multiple source owners to one target module. A future
+bounded control-bus merger may remove that restriction without changing the
+binding schema.
 
 ## 5. Project Document
 
@@ -169,24 +186,34 @@ Conceptually it contains:
 
 ```json
 {
-  "schema_version": 1,
   "app_name": "PerformanceRig",
   "modules": [],
   "companions": [],
-  "devices": [],
-  "bindings": [],
-  "surfaces": [],
+   "musicrat_control": {
+      "schema_version": 1,
+      "devices": [],
+      "bindings": [],
+      "surfaces": []
+   },
   "designer": {}
 }
 ```
 
 - `modules` and `companions` retain CommRaT launch semantics.
-- `devices` stores desired adapters, stable identities, and unresolved-device
+- `musicrat_control.devices` stores desired adapters, stable identities, and unresolved-device
   state, never transient device handles.
-- `bindings` stores endpoint-to-target routing and transforms.
-- `surfaces` stores renderer-neutral pages and widgets.
+- `musicrat_control.bindings` stores endpoint-to-target routing and transforms.
+- `musicrat_control.surfaces` stores renderer-neutral endpoints and widgets.
 - `designer` stores graph coordinates, collapsed groups, visible layers, and
   other editor-only state.
+
+Device and surface IDs are unique in one project. Endpoint IDs are unique
+within their owner and are referenced as an owner/endpoint pair. Bindings use a
+stable string ID, one source endpoint reference, one module/parameter target,
+an input mode, an optional numeric transform, and an optional feedback endpoint.
+Surface widgets may reference an endpoint on their surface and a project
+binding. Saving rejects duplicate IDs, dangling references, invalid enum values,
+non-finite ranges or transforms, and bindings to non-automatable parameters.
 
 Launched adapters receive only the sections they own. DSP modules do not parse
 the complete project document.
@@ -221,11 +248,17 @@ Persistent parameter values belong to module parameters. Widget state is a
 projection of parameter state, binding state, device state, and telemetry.
 
 - A control gesture emits a semantic event with endpoint and origin IDs.
-- The mapping engine emits the resulting target event.
-- The target publishes bounded parameter-state feedback at a controlled rate.
+- The mapping engine preserves the origin ID and adds the selected binding ID.
+- The target publishes a bounded `ParameterStateBlock` at a controlled rate.
 - GUI adapters and hardware feedback adapters update matching endpoints.
-- Origin IDs or equivalent suppression state prevent feedback loops.
+- Adapters suppress reflexive updates with origin IDs; binding IDs select the
+   configured feedback route.
 - A disconnected surface or device may reconnect and request a current snapshot.
+
+Projects persist string IDs. Before launch, those IDs are resolved to nonzero,
+globally unique `uint32_t` values that remain stable for the session. Zero means
+unspecified. The producing CommRaT route identifies a feedback block's module
+instance, so no second instance-identity scheme is embedded in the payload.
 
 Optimistic widget movement is allowed for responsiveness, but authoritative
 state comes back through the feedback path. Meter and scope updates may be
@@ -278,7 +311,7 @@ This architecture should be stabilized before broad DSP, hardware, or GUI work:
 2. Define bounded `ControlEventBlock`, parameter-state feedback, and device/
    endpoint descriptors.
 3. Define and test the serializable binding/transform schema.
-4. Implement a headless mapping engine with virtual GUI and hardware endpoints.
+4. Implement a headless mapping engine and launchable module adapter.
 5. Extend project parsing, validation, and round-trip preservation for devices,
    bindings, surfaces, and designer state.
 6. Define the renderer-neutral surface schema and capability negotiation.
@@ -303,7 +336,10 @@ covered by unit tests, including semantic note routing.
 The built-in note-aware catalog is a design fixture until launchable note-source
 and instrument modules exist. The local host now provides automatic installed
 descriptor discovery and revision-aware atomic project persistence. Process
-launch remains a future host capability.
+ownership is intentionally outside the current designer boundary. A future
+integration may hand a validated saved revision to an external launcher or
+controller after lifecycle, failure-recovery, and log-ownership semantics are
+defined.
 
 Hosted projects use `GET /api/projects` for discovery,
 `GET /api/projects/<name>` for loading, and `PUT /api/projects/<name>` for

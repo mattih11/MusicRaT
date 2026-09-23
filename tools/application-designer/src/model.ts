@@ -88,7 +88,100 @@ export interface ApplicationDocument {
   app_name: string
   modules: ApplicationModule[]
   companions?: unknown[]
+  musicrat_control?: MusicRaTControlProject
   [key: string]: unknown
+}
+
+export type ControlValueDomain =
+  | 'unipolar'
+  | 'bipolar'
+  | 'relative'
+  | 'boolean'
+  | 'choice'
+  | 'gate'
+  | 'trigger'
+  | 'note'
+  | 'transport'
+  | 'text'
+  | 'telemetry'
+
+export type ControlEndpointDirection = 'input' | 'output' | 'bidirectional'
+
+export interface ControlEndpoint {
+  id: string
+  display_name: string
+  direction: ControlEndpointDirection
+  domain: ControlValueDomain
+  minimum?: number
+  maximum?: number
+  step?: number
+  unit?: string
+  choices?: ParameterChoice[]
+  capabilities?: string[]
+}
+
+export interface ControlDevice {
+  id: string
+  display_name: string
+  kind: 'hardware' | 'gui' | 'virtual'
+  adapter_module_id?: string
+  required?: boolean
+  endpoints: ControlEndpoint[]
+}
+
+export interface EndpointReference {
+  owner_id: string
+  endpoint_id: string
+}
+
+export interface ParameterTarget {
+  module_id: string
+  parameter_id: number
+}
+
+export interface ControlTransform {
+  scale?: number
+  offset?: number
+  invert?: boolean
+  dead_zone?: number
+  curve?: 'linear' | 'logarithmic' | 'exponential'
+  quantization?: number
+  hysteresis?: number
+}
+
+export interface ControlBinding {
+  id: string
+  source: EndpointReference
+  target: ParameterTarget
+  mode: 'absolute' | 'relative' | 'toggle' | 'momentary' | 'gate' | 'trigger' | 'choice'
+  pickup?: 'immediate' | 'match'
+  pickup_tolerance?: number
+  transform?: ControlTransform
+  feedback?: EndpointReference
+  priority?: number
+}
+
+export interface SurfaceWidget {
+  id: string
+  kind: 'knob' | 'slider' | 'fader' | 'button' | 'toggle' | 'choice' | 'xy' | 'keyboard' | 'transport' | 'text' | 'display' | 'meter'
+  display_name: string
+  endpoint_id?: string
+  binding_id?: string
+}
+
+export interface ControlSurface {
+  id: string
+  display_name: string
+  target: 'ratgui' | 'lvgl' | 'generic'
+  endpoints: ControlEndpoint[]
+  widgets: SurfaceWidget[]
+}
+
+export interface MusicRaTControlProject {
+  schema_version: 1
+  devices: ControlDevice[]
+  bindings: ControlBinding[]
+  surfaces: ControlSurface[]
 }
 
 export interface DesignerModule {
@@ -117,6 +210,121 @@ export interface DesignerWorkspace {
 export interface ValidationIssue {
   target: string
   message: string
+}
+
+function duplicateIds(items: { id: string }[]): string[] {
+  const seen = new Set<string>()
+  return items.flatMap((item) => {
+    if (!item.id.trim() || seen.has(item.id)) return [item.id]
+    seen.add(item.id)
+    return []
+  })
+}
+
+function finiteOptional(value: number | undefined): boolean {
+  return value === undefined || Number.isFinite(value)
+}
+
+const endpointDirections = new Set<ControlEndpointDirection>(['input', 'output', 'bidirectional'])
+const endpointDomains = new Set<ControlValueDomain>([
+  'unipolar', 'bipolar', 'relative', 'boolean', 'choice', 'gate', 'trigger',
+  'note', 'transport', 'text', 'telemetry',
+])
+const bindingModes = new Set<ControlBinding['mode']>([
+  'absolute', 'relative', 'toggle', 'momentary', 'gate', 'trigger', 'choice',
+])
+
+export function validateControlProject(
+  control: MusicRaTControlProject | undefined,
+  modules: DesignerModule[],
+): ValidationIssue[] {
+  if (!control) return []
+  const issues: ValidationIssue[] = []
+  if (control.schema_version !== 1) {
+    issues.push({ target: 'musicrat_control', message: 'Unsupported control schema version.' })
+  }
+
+  const owners = [...control.devices, ...control.surfaces]
+  for (const id of duplicateIds(owners)) {
+    issues.push({ target: id || 'musicrat_control', message: 'Control owner IDs must be nonempty and unique.' })
+  }
+  for (const owner of owners) {
+    for (const id of duplicateIds(owner.endpoints)) {
+      issues.push({ target: id || owner.id, message: `Endpoint IDs must be nonempty and unique within ${owner.id}.` })
+    }
+    for (const endpoint of owner.endpoints) {
+      if (!endpointDirections.has(endpoint.direction) || !endpointDomains.has(endpoint.domain)) {
+        issues.push({ target: endpoint.id, message: 'Endpoint direction or domain is invalid.' })
+      } else if (!finiteOptional(endpoint.minimum) || !finiteOptional(endpoint.maximum)
+          || !finiteOptional(endpoint.step)) {
+        issues.push({ target: endpoint.id, message: 'Endpoint ranges must contain finite numbers.' })
+      } else if (endpoint.minimum !== undefined && endpoint.maximum !== undefined
+          && endpoint.minimum > endpoint.maximum) {
+        issues.push({ target: endpoint.id, message: 'Endpoint minimum cannot exceed its maximum.' })
+      }
+    }
+  }
+
+  const endpointExists = (reference: EndpointReference) => {
+    const owner = owners.find((item) => item.id === reference.owner_id)
+    return owner?.endpoints.some((endpoint) => endpoint.id === reference.endpoint_id) ?? false
+  }
+  const bindings = new Map<string, ControlBinding>()
+  for (const binding of control.bindings) {
+    if (!binding.id.trim() || bindings.has(binding.id)) {
+      issues.push({ target: binding.id || 'musicrat_control', message: 'Binding IDs must be nonempty and unique.' })
+      continue
+    }
+    bindings.set(binding.id, binding)
+    if (!endpointExists(binding.source)) {
+      issues.push({ target: binding.id, message: 'Binding source endpoint does not exist.' })
+    }
+    if (binding.feedback && !endpointExists(binding.feedback)) {
+      issues.push({ target: binding.id, message: 'Binding feedback endpoint does not exist.' })
+    }
+    const targetModule = modules.find((module) => module.id === binding.target.module_id)
+    const targetParameter = targetModule && parametersOf(targetModule.descriptor)
+      .find((parameter) => parameter.id === binding.target.parameter_id)
+    if (!targetParameter) {
+      issues.push({ target: binding.id, message: 'Binding target parameter does not exist.' })
+    } else if (!targetParameter.automatable || targetParameter.read_only) {
+      issues.push({ target: binding.id, message: 'Binding target parameter is not controllable.' })
+    }
+    if (!bindingModes.has(binding.mode)) {
+      issues.push({ target: binding.id, message: 'Binding mode is invalid.' })
+    }
+    if (binding.pickup !== undefined && !['immediate', 'match'].includes(binding.pickup)) {
+      issues.push({ target: binding.id, message: 'Binding pickup policy is invalid.' })
+    }
+    if (!finiteOptional(binding.pickup_tolerance) || (binding.pickup_tolerance ?? 0) < 0) {
+      issues.push({ target: binding.id, message: 'Binding pickup tolerance must be nonnegative.' })
+    }
+    const transform = binding.transform
+    if (transform && (!finiteOptional(transform.scale) || !finiteOptional(transform.offset)
+        || !finiteOptional(transform.dead_zone) || !finiteOptional(transform.quantization)
+        || !finiteOptional(transform.hysteresis))) {
+      issues.push({ target: binding.id, message: 'Binding transforms must contain finite numbers.' })
+    }
+  }
+
+  for (const surface of control.surfaces) {
+    if (!['ratgui', 'lvgl', 'generic'].includes(surface.target)) {
+      issues.push({ target: surface.id, message: 'Surface target is invalid.' })
+    }
+    for (const id of duplicateIds(surface.widgets)) {
+      issues.push({ target: id || surface.id, message: `Widget IDs must be nonempty and unique within ${surface.id}.` })
+    }
+    for (const widget of surface.widgets) {
+      if (widget.endpoint_id
+          && !surface.endpoints.some((endpoint) => endpoint.id === widget.endpoint_id)) {
+        issues.push({ target: widget.id, message: 'Widget endpoint does not exist on its surface.' })
+      }
+      if (widget.binding_id && !bindings.has(widget.binding_id)) {
+        issues.push({ target: widget.id, message: 'Widget binding does not exist.' })
+      }
+    }
+  }
+  return issues
 }
 
 const lists: Record<PortDirection, keyof ModuleDescriptor> = {
@@ -175,6 +383,7 @@ export function validateConnection(
 export function validateWorkspace(workspace: DesignerWorkspace): ValidationIssue[] {
   const issues = workspace.connections.flatMap((connection) =>
     validateConnection(workspace.modules, connection, workspace.connections))
+  issues.push(...validateControlProject(workspace.source.musicrat_control, workspace.modules))
   for (const module of workspace.modules) {
     for (const port of portsOf(module.descriptor)) {
       if (port.required && ['input', 'synced_input', 'remote'].includes(port.direction)) {
@@ -249,7 +458,9 @@ export function importApplication(
   descriptors: ModuleDescriptor[],
 ): DesignerWorkspace {
   const byClass = new Map(descriptors.map((descriptor) => [descriptor.module_class, descriptor]))
-  const modules = application.modules.map((source, index) => {
+  const editableModules = application.modules.filter(
+    (source) => source.musicrat_generated !== 'control_mapper')
+  const modules = editableModules.map((source, index) => {
     const descriptor = byClass.get(source.module_class)
     if (!descriptor) throw new Error(`Missing descriptor for ${source.module_class}.`)
     return {

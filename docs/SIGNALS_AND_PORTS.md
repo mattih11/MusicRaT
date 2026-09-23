@@ -68,6 +68,7 @@ Port domains remain separate even when payloads contain similar primitive values
 | Process clock | `ProcessContext` | Every audio quantum | Drives generators that have no audio input |
 | Raw control | `ControlEventBlock` | Event-driven or batched | Device-independent knobs, encoders, switches, gates, and triggers |
 | Parameter control | `ParameterEventBlock` | Block-aligned | Values mapped to parameters of one target module |
+| Parameter state | `ParameterStateBlock` | On change or bounded snapshot | Authoritative parameter values and feedback provenance |
 | Notes | `NoteEventBlock` | Block-aligned | Notes and per-note expression |
 | Transport | `TransportBlock` | Block-aligned and on change | Tempo, meter, play state, and musical position |
 | Telemetry | Type-specific snapshots | Decimated | Meters, scopes, spectra, health, and diagnostics |
@@ -75,7 +76,10 @@ Port domains remain separate even when payloads contain similar primitive values
 
 Compressed media packets and device-native buffers are backend details, not graph port domains. File players decode ahead and publish `AudioBlock`; file/device sinks consume `AudioBlock`. See [Media Playback, Recording, and Device I/O](MEDIA_PLAYBACK.md).
 
-`AudioBlock`, the initial numeric `ParameterEventBlock`, and `LevelMeterBlock` are implemented. The other payload families are planned and must use bounded serializable storage.
+`AudioBlock`, `ControlEventBlock`, the numeric `ParameterEventBlock`,
+`ParameterStateBlock`, note, transport, playback-status, and level-meter
+payloads are implemented. Future payload families must use bounded serializable
+storage.
 
 ### 4.1 Compatibility Rules
 
@@ -166,33 +170,105 @@ CommRaT exposes parameter names, C++ types, current JSON values, and descriptor 
 
 The canonical string name is persisted in project JSON for readability. A bounded numeric ID is carried in real-time events. MusicRaT launcher preflight rejects duplicate IDs and names, names absent from `params_defaults`, invalid ranges, and malformed choices. Launchable modules publish their flat startup parameters; structured aggregates require a dedicated editor contract. Frequency/custom mappings and explicit smoothing policy remain planned.
 
-### 6.3 `ControlEventBlock` (Planned)
+### 6.3 Runtime Control IDs
+
+Project files persist readable string IDs for devices, endpoints, origins, and
+bindings. Launch preparation resolves them to globally unique, session-stable
+`uint32_t` IDs before any real-time processing starts. Zero is reserved for an
+unspecified ID. Real-time messages never carry project strings or allocate ID
+storage.
+
+The Application Designer allocates IDs deterministically by lexicographically
+sorting owner IDs, owner/endpoint pairs, and binding IDs, then numbering each
+set from one. The resulting table is reproducible for an unchanged project and
+is supplied to generated mapper and adapter configuration rather than inferred
+in the audio thread.
+
+An origin identifies the causal gesture or externally initiated update and is
+preserved through mapping and feedback. A binding identifies the persistent
+mapping selected for an event. These IDs are deliberately separate because one
+origin may affect several bindings and one binding may receive many origins.
+
+### 6.4 `ControlEventBlock` (Implemented)
 
 Adapter modules translate MIDI, HID, OSC, GPIO, computer keyboard, and other protocols into bounded semantic control events. Each event contains:
 
 - Stable source device and endpoint IDs
+- Origin ID for causal tracking and feedback-loop suppression
 - Event kind: unipolar, bipolar, relative, boolean, choice, gate, or trigger
 - Normalized value or relative delta
-- Source timestamp and sequence number
+- Sample offset within the destination quantum
 - Gesture flags such as begin, update, end, and cancellation
 
-No device-specific packet representation crosses this boundary.
+The block is bounded by `max_control_events` and carries a source timestamp,
+sequence number, and overflow flag. Events use `double` values so mapping into
+numeric parameter values does not introduce a protocol precision change. No
+device-specific packet representation crosses this boundary.
 
-### 6.4 `ParameterEventBlock` (Initial Implementation)
+### 6.5 `ParameterEventBlock` (Implemented Numeric Contract)
 
 A mapping module transforms raw controls into target-oriented events. Each event contains:
 
 - Target parameter ID
-- Normalized value in `[0, 1]`, or a typed discrete value
+- Numeric value in the target parameter's declared domain
 - Sample offset within the target audio quantum
-- Binding/route ID
-- Change flags such as immediate, ramped, begin gesture, and end gesture
+- Source endpoint ID
+- Origin ID preserved from the initiating control or automation source
+- Binding ID selected by the mapping engine
 
-Events are ordered by sample offset, then stable route order. Overflow is deterministic: retain the latest value per target where possible, set an overflow flag, and increment telemetry counters. Exact coalescing behavior requires tests before implementation is marked stable.
+The mapping kernel orders output by sample offset and preserves binding
+declaration order for equal offsets. When the output reaches capacity,
+additional mapped values are dropped, the overflow flag is set, and binding
+state is not advanced for changes the target did not receive. The source-
+overflow flag preserves an upstream `ControlEventBlock` overflow indication.
+Target coalescing remains planned.
 
-The current bounded implementation carries source endpoint ID, target parameter ID, sample offset, numeric value, timestamp, and sequence number. Gain consumes ordered, in-range events and ignores an invalid event block. Binding IDs, typed discrete values, change flags, coalescing, and overflow telemetry remain planned.
+The bounded block carries timestamp and sequence metadata. Gain and stereo pan
+consume ordered, in-range numeric events. Typed discrete values, change flags,
+coalescing, and overflow telemetry remain planned.
 
-### 6.5 Virtual Parameter Ports
+### 6.6 `ParameterStateBlock` (Implemented)
+
+Targets publish authoritative numeric state through a bounded feedback block.
+Each state contains the parameter ID, originating endpoint ID, origin ID,
+binding ID, and current value. The block carries timestamp and sequence
+metadata plus overflow and snapshot flags. The producing CommRaT route
+identifies the module instance, so the payload does not duplicate a launcher
+address.
+
+Adapters suppress reflexive feedback by comparing origin IDs while still
+accepting state from other origins. Binding IDs route the state to the selected
+feedback destination. A snapshot flag identifies a requested current-state
+projection; an unflagged block is an incremental update.
+
+### 6.7 Headless Mapping Kernel (Implemented)
+
+`musicrat::dsp::ControlMapper` is independent of CommRaT module lifecycle,
+device protocols, and GUI frameworks. Configuration compiles persistent
+bindings into fixed-capacity records containing numeric IDs, source kind and
+range, target parameter and range, mapping mode, curve, affine transform,
+dead-zone, quantization, hysteresis, pickup policy, and initial value.
+
+Configuration rejects zero IDs, duplicate binding IDs, invalid ranges, unknown
+kinds or modes, non-finite values, and excess bindings before processing.
+Processing performs no allocation, locking, or throwing operations. It supports
+absolute, relative, toggle, momentary, gate, trigger, and choice mappings.
+Absolute values are normalized, optionally inverted, dead-zone and curve
+transformed, scaled and offset, mapped into the target range, quantized, and
+clamped. Relative values accumulate from authoritative state. Hysteresis
+suppresses insignificant output changes.
+
+`ParameterStateBlock` updates resynchronize binding state. Match pickup is
+re-armed by synchronization and emits only after the physical control reaches
+or crosses the authoritative value; immediate pickup applies the next event.
+
+`MusicRaTControlMapper` is the launchable adapter around this kernel. It has one
+`Input<ControlEventBlock>`, one optional synchronized
+`ParameterStateBlock` input, one `Output<ParameterEventBlock>`, and bounded
+compiled bindings in `Params<ControlMapper>`. Invalid startup or updated
+configuration produces an empty block with `PARAMETER_EVENT_BLOCK_INVALID_CONFIG`.
+
+### 6.8 Virtual Parameter Ports
 
 RatGUI may draw one input pin per parameter, but modules should not declare one CommRaT message type or mailbox per knob. Instead:
 
@@ -204,7 +280,7 @@ RatGUI may draw one input pin per parameter, but modules should not declare one 
 
 This preserves discoverability without causing message-registry or mailbox growth.
 
-### 6.6 Bindings
+### 6.9 Bindings
 
 A binding is project data and includes:
 

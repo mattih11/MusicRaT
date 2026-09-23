@@ -24,6 +24,32 @@ const project = (appName, moduleCount = 0) => ({
   })),
 })
 
+const controlProject = {
+  schema_version: 1,
+  devices: [{
+    id: 'fader-bank',
+    display_name: 'Fader Bank',
+    kind: 'hardware',
+    adapter_module_id: 'Module_1',
+    endpoints: [{
+      id: 'fader-1',
+      display_name: 'Fader 1',
+      direction: 'input',
+      domain: 'unipolar',
+      minimum: 0,
+      maximum: 1,
+    }],
+  }],
+  bindings: [{
+    id: 'gain',
+    source: { owner_id: 'fader-bank', endpoint_id: 'fader-1' },
+    target: { module_id: 'Module_1', parameter_id: 1 },
+    mode: 'absolute',
+    transform: { scale: 1, offset: 0 },
+  }],
+  surfaces: [],
+}
+
 describe('atomic project store', () => {
   it('creates, lists, reads, and replaces a project by revision', async () => {
     const created = await store.write('Studio Rig.json', project('StudioRig'), null)
@@ -67,5 +93,21 @@ describe('atomic project store', () => {
     await store.write('Existing.json', project('Existing'), null)
     await expect(store.write('Existing.json', project('Replacement'), null))
       .rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('round-trips valid control metadata and rejects unresolved references', async () => {
+    const document = { ...project('ControlRig', 1), musicrat_control: controlProject }
+    const created = await store.write('ControlRig.json', document, null)
+    expect((await store.read('ControlRig.json')).document.musicrat_control)
+      .toEqual(controlProject)
+
+    const invalidControl = structuredClone(controlProject)
+    invalidControl.bindings[0].source.endpoint_id = 'missing'
+    await expect(store.write(
+      'InvalidControl.json',
+      { ...project('InvalidControl', 1), musicrat_control: invalidControl },
+      null,
+    )).rejects.toMatchObject({ code: 'invalid_document' })
+    expect(created.document.musicrat_control.bindings[0].id).toBe('gain')
   })
 })

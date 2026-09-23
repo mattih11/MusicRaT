@@ -86,6 +86,8 @@ flowchart TD
 - `src/apps/` composes process-level tools and must not contain reusable DSP.
 - `tools/application-designer/` consumes generated descriptors and native
     CommRaT application JSON. Its graph compiler remains independent of React;
+    strict export compiles control bindings into generated mapper modules while
+    draft persistence retains the editable stable-ID schema.
     it must not define another persistent graph format or runtime DSP contract.
 
 Cycles between these layers are not allowed.

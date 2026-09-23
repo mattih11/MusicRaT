@@ -36,5 +36,6 @@ files and descriptors can also be loaded manually. With the host, projects are
 listed, loaded, and saved atomically with revision checks. The default project
 directory is `$XDG_CONFIG_HOME/musicrat/applications`, falling back to
 `~/.config/musicrat/applications`; `MUSICRAT_PROJECT_DIR` or
-`--project-dir=<path>` overrides it. Process launching remains a future host
-capability.
+`--project-dir=<path>` overrides it. The designer does not currently own
+application processes. A future integration may hand a validated saved revision
+to an external launcher/controller once runtime ownership is defined.
