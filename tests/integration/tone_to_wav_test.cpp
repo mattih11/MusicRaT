@@ -21,12 +21,20 @@ uint32_t read_u32(const std::vector<unsigned char>& bytes, std::size_t offset) {
         | (static_cast<uint32_t>(bytes[offset + 3]) << 24U);
 }
 
+uint16_t read_u16(const std::vector<unsigned char>& bytes, std::size_t offset) {
+    return static_cast<uint16_t>(bytes[offset])
+        | static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset + 1]) << 8U);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
+    if (argc != 3 && argc != 4) {
         return 1;
     }
+    const auto expected_channels = argc == 4
+        ? static_cast<uint16_t>(std::stoul(argv[3]))
+        : uint16_t{1};
 
     const std::filesystem::path output{"/tmp/musicrat-tone.wav"};
     std::filesystem::remove(output);
@@ -45,15 +53,16 @@ int main(int argc, char** argv) {
         || !std::equal(bytes.begin(), bytes.begin() + 4, "RIFF")
         || !std::equal(bytes.begin() + 8, bytes.begin() + 12, "WAVE")
         || read_u32(bytes, 4) + 8 != bytes.size()
+        || read_u16(bytes, 22) != expected_channels
         || read_u32(bytes, 24) != 48000
         || read_u32(bytes, 40) + 44 != bytes.size()) {
         return 3;
     }
 
     const auto data_bytes = read_u32(bytes, 40);
-    if (data_bytes < 480 * sizeof(int16_t)
-        || data_bytes > 48000 * sizeof(int16_t)
-        || data_bytes % sizeof(int16_t) != 0) {
+    if (data_bytes < 480 * sizeof(int16_t) * expected_channels
+        || data_bytes > 48000 * sizeof(int16_t) * expected_channels
+        || data_bytes % (sizeof(int16_t) * expected_channels) != 0) {
         return 4;
     }
 

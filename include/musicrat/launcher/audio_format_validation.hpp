@@ -32,6 +32,9 @@ struct AudioEndpointFormat {
 struct AudioPassthrough {
     std::size_t input_port_index{0};
     std::size_t output_port_index{0};
+    bool preserve_sample_rate{true};
+    bool preserve_channel_count{true};
+    bool preserve_clock_domain{true};
 };
 
 struct AudioModuleFormat {
@@ -112,6 +115,19 @@ inline DescriptorMetadata audio_passthrough_metadata(
             }},
         },
     };
+}
+
+inline DescriptorMetadata audio_channel_transform_metadata(
+    uint16_t input_channel_count,
+    uint16_t output_channel_count,
+    std::size_t input_port_index = 0,
+    std::size_t output_port_index = 0) {
+    auto metadata = audio_passthrough_metadata(
+        input_port_index, output_port_index);
+    metadata.musicrat_audio.inputs[0].channel_count = input_channel_count;
+    metadata.musicrat_audio.outputs[0].channel_count = output_channel_count;
+    metadata.musicrat_audio.passthroughs[0].preserve_channel_count = false;
+    return metadata;
 }
 
 namespace detail {
@@ -223,9 +239,12 @@ inline bool merge_format(
     const ResolvedEndpoint& source,
     ResolvedEndpoint& destination,
     const std::string& source_name,
-    const std::string& destination_name) {
+    const std::string& destination_name,
+    bool preserve_sample_rate = true,
+    bool preserve_channel_count = true,
+    bool preserve_clock_domain = true) {
     bool changed = false;
-    if (source.sample_rate_hz) {
+    if (preserve_sample_rate && source.sample_rate_hz) {
         if (destination.sample_rate_hz
             && std::fabs(*source.sample_rate_hz - *destination.sample_rate_hz) > 1e-9) {
             throw std::runtime_error(
@@ -239,7 +258,7 @@ inline bool merge_format(
             changed = true;
         }
     }
-    if (source.channel_count) {
+    if (preserve_channel_count && source.channel_count) {
         if (destination.channel_count
             && *source.channel_count != *destination.channel_count) {
             throw std::runtime_error(
@@ -253,7 +272,7 @@ inline bool merge_format(
             changed = true;
         }
     }
-    if (source.clock_domain) {
+    if (preserve_clock_domain && source.clock_domain) {
         if (destination.clock_domain
             && source.clock_domain != destination.clock_domain) {
             throw std::runtime_error(
@@ -379,7 +398,10 @@ inline void validate_audio_formats(
                 changed |= detail::merge_format(
                     *input, *output,
                     consumer_state.module->name + ".input",
-                    consumer_state.module->name + ".output");
+                    consumer_state.module->name + ".output",
+                    passthrough.preserve_sample_rate,
+                    passthrough.preserve_channel_count,
+                    passthrough.preserve_clock_domain);
             }
         }
         if (!changed) return;

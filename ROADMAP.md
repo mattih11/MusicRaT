@@ -122,7 +122,9 @@ Streaming control signals such as knob motion, gates, note events, and automatio
     - [x] Cover compatible and incompatible oscillator -> WAV sink graphs through generated descriptors
     - [x] Propagate constraints through declared gain and level-meter pass-through relationships
     - [x] Cover compatible and incompatible oscillator -> gain -> level meter -> WAV sink graphs
-    - [ ] Model format-changing processors and negotiate dynamic hardware/file endpoint formats
+    - [~] Model format-changing processors and negotiate dynamic hardware/file endpoint formats
+      - [x] Represent fixed channel transforms while preserving sample-rate and clock-domain propagation
+      - [ ] Negotiate dynamic hardware and file endpoint formats
 - [ ] Decide whether production configs use JSON only or whether `ProcessLauncher` should gain the YAML support available in the in-process launcher
 - [ ] Add optional route labels or stable port IDs upstream if positional ports are insufficient for RatGUI editing
 - [ ] Have RatGUI edit/save the CommRaT application description and preserve unknown module-specific `params`
@@ -142,6 +144,23 @@ Streaming control signals such as knob motion, gates, note events, and automatio
 - [~] Add short-duration CTest smoke runs for every headless launch config
 - [ ] Add schema/descriptor validation tests for launch configs that require hardware or RatGUI
 
+## Application Designer Foundation
+
+Stabilize [the application designer architecture](docs/APPLICATION_DESIGNER.md)
+before implementing further DSP modules. The implementation remains generic,
+while the primary product is a simple visual tool for assembling an audio
+application, its hardware and GUI controls, and its presentation surfaces.
+
+- [ ] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
+- [ ] Add rich parameter descriptors for control generation, mapping, automation, and display
+- [ ] Define bounded semantic control events and parameter-state feedback with origin IDs
+- [ ] Define serializable device, endpoint, binding, transform, and surface schemas
+- [ ] Implement and test a headless mapping engine independent of GUI and hardware backends
+- [ ] Extend project validation and round-trip persistence for bindings and presentation state
+- [ ] Have the designer directly edit pre-launch CommRaT module and route JSON without an intermediate graph format
+- [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture
+- [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
+
 ## Phase 2: Essential DSP Modules
 
 Implement the smallest useful processing toolbox. Each item includes its command messages, state snapshot, metering where relevant, DSP tests, and a runnable graph example.
@@ -149,8 +168,13 @@ Implement the smallest useful processing toolbox. Each item includes its command
 ### Utility
 
 - [x] Gain with click-free ramping, mute, and polarity inversion
-- [ ] Stereo panner with selectable pan law
+- [x] Mono-to-stereo panner with selectable linear and equal-power pan laws
 - [ ] Channel mapper: mono/stereo conversion, swap, copy, and matrix routing
+- [ ] Configurable mono/stereo channel-strip utility
+  - Compose the channel mapper, gain, and panner kernels without duplicating DSP
+  - Mono-to-stereo panning plus stereo balance and width controls
+  - Click-free gain, mute, polarity, bypass, and output metering
+  - Explicit input/output channel-format policy for launcher validation
 - [ ] DC blocker
 - [ ] Delay line and sample-accurate delay compensation
 - [ ] Wet/dry mix and bypass with click-free transitions
@@ -175,10 +199,23 @@ Implement the smallest useful processing toolbox. Each item includes its command
 - [ ] Sidechain input and sidechain filter
 - [ ] Gain-reduction metering
 
+### Delay, Modulation, and Spatial Effects
+
+- [ ] Fractional delay kernel with bounded preallocated storage and selectable interpolation
+- [ ] Tempo-synchronized mono/stereo delay with feedback, filtering, ping-pong, and ducking
+- [ ] Chorus, flanger, and vibrato built from the shared modulated-delay kernel
+- [ ] Phaser with selectable stage count and feedback
+- [ ] Tremolo, auto-pan, and stereo-width effects
+- [ ] Algorithmic reverb with bounded delay storage, damping, predelay, and stereo controls
+- [ ] Convolution reverb with non-real-time impulse loading and partitioned processing
+- [ ] Click-free bypass, wet/dry control, tail handling, and latency reporting for every effect
+
 ### Mixing and Routing
 
-- [ ] Fixed-capacity N-input mixer
+- [ ] Fixed-capacity N-input mixer with configurable mono/stereo inputs and a stereo master bus
+- [ ] Preallocated input capacity with runtime activation and stable input identities
 - [ ] Per-input gain, pan, mute, solo, and meter state
+- [ ] Defined summing headroom, clipping policy, and optional normalization
 - [ ] Master bus gain and metering
 - [ ] Send/return buses
 - [ ] Routing matrix with cycle detection
@@ -192,6 +229,17 @@ Implement the smallest useful processing toolbox. Each item includes its command
 - [ ] Add ADSR envelope module
 - [ ] Add LFO and modulation messages
 - [ ] Add polyphonic voice allocator with note stealing
+- [ ] Three-oscillator subtractive synthesizer instrument
+  - Per-oscillator waveform, octave, semitone, fine tuning, phase, level, and enable controls
+  - Oscillator sync, detune/unison, noise source, and bounded internal mixing
+  - Multimode filter with dedicated envelope and keyboard tracking
+  - Amp ADSR, filter ADSR, LFOs, velocity response, and bounded modulation routing
+  - Polyphonic voice allocation, sustain handling, and deterministic voice stealing
+- [ ] Complete wavetable synthesizer instrument
+  - Band-limited table banks, interpolation, wavetable position, and table morphing
+  - Non-real-time wavetable loading and validation with bounded real-time state
+  - Per-voice envelopes, filters, LFOs, unison, and modulation routing
+  - Polyphonic note and per-note expression support through `NoteEventBlock`
 - [ ] Add sampler with non-real-time loading and preallocated playback voices
 - [ ] Add metronome and clock source
 - [~] Add codec-neutral file player following `docs/MEDIA_PLAYBACK.md`
@@ -307,6 +355,7 @@ A binding is persistent graph data from one control endpoint to one target param
 
 ## Phase 4: Control Hardware, Keyboard, and MIDI
 
+- [x] Define bounded, timestamped semantic note events independent of MIDI and MusicXML
 - [ ] Define timestamped musical event messages
   - Note on/off and polyphonic pressure
   - Control change, pitch bend, program change, and channel pressure
@@ -347,11 +396,13 @@ Keep backend callbacks minimal: adapt buffers, transfer bounded data, update cou
 - [x] Null sink for tests, benchmarks, and headless graphs
 - [ ] End-to-end latency measurement
 
-## Phase 6: RatGUI Visualization and Control
+## Phase 6: RatGUI and LVGL Visualization and Control
 
-The GUI must consume snapshots and issue commands; it must never read mutable DSP state directly or block the audio path.
+Both renderers consume the shared project, surface schema, snapshots, and commands. Neither may read mutable DSP state directly or block the audio path. RatGUI is the full application/graph designer; LVGL is initially the efficient on-device performance and status surface.
 
 - [ ] Confirm RatGUI APIs, threading model, rendering backend, and dependency integration
+- [ ] Confirm LVGL version, display/input drivers, threading boundary, and RaTOS integration
+- [ ] Implement shared renderer-neutral surface loading and capability validation
 - [ ] Define bounded UI snapshot messages and configurable publication rates
 - [ ] Module browser with lifecycle and health state
 - [ ] Graph view with typed ports, connections, and validation feedback

@@ -9,6 +9,7 @@ using sample_type = @MUSICRAT_SAMPLE_TYPE@;
 inline constexpr std::size_t max_audio_channels = @MUSICRAT_MAX_AUDIO_CHANNELS@;
 inline constexpr std::size_t max_audio_frames = @MUSICRAT_MAX_AUDIO_FRAMES@;
 inline constexpr std::size_t max_parameter_events = @MUSICRAT_MAX_PARAMETER_EVENTS@;
+inline constexpr std::size_t max_note_events = @MUSICRAT_MAX_NOTE_EVENTS@;
 inline constexpr std::size_t file_proxy_bytes = @MUSICRAT_FILE_PROXY_BYTES@;
 inline constexpr double default_sample_rate_hz = @MUSICRAT_DEFAULT_SAMPLE_RATE_HZ@;
 inline constexpr std::size_t default_block_period_ms = @MUSICRAT_DEFAULT_BLOCK_PERIOD_MS@;

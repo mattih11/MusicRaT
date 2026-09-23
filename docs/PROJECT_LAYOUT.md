@@ -38,6 +38,10 @@ MusicRaT/
 
 Directories are created when their first real file is added; empty placeholder directories are not required.
 
+`APPLICATION_DESIGNER.md` owns the user-facing project designer, control-surface,
+RatGUI/LVGL, hardware binding, and presentation contracts. `SIGNALS_AND_PORTS.md`
+owns the underlying typed data-flow and launcher contracts.
+
 ## Public Include Convention
 
 Every public header lives below `include/musicrat/` and is included with its installed path:

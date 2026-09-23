@@ -1,0 +1,42 @@
+{
+  "app_name": "MusicRaTToneThroughStereoPannerToWav",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.25,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "StereoPanner_1",
+      "module_class": "MusicRaTStereoPanner",
+      "outputs": [{ "system_id": 10, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "pan": 0.0,
+        "pan_law": 1,
+        "smoothing_samples": 64
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "path": "/tmp/musicrat-tone.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 2
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 #include <musicrat/protocol/audio_block.hpp>
 #include <musicrat/protocol/deck_control.hpp>
 #include <musicrat/protocol/file_player.hpp>
+#include <musicrat/protocol/note_events.hpp>
 #include <musicrat/protocol/parameter_events.hpp>
 #include <musicrat/protocol/oscillator.hpp>
 #include <musicrat/protocol/playback_status.hpp>
@@ -20,6 +21,8 @@ using AudioBlockOutput = commrat::DataWithCommands<
     CommRaT::Messages::UnloadMedia>;
 using ParameterEventOutput = commrat::DataWithCommands<
     CommRaT::Messages::ParameterEventBlock>;
+using NoteEventOutput = commrat::DataWithCommands<
+    CommRaT::Messages::NoteEventBlock>;
 using DeckControlEventOutput = commrat::DataWithCommands<
     CommRaT::Messages::DeckControlEventBlock>;
 using LevelMeterOutput = commrat::DataWithCommands<
@@ -32,6 +35,7 @@ using TransportOutput = commrat::DataWithCommands<
 using MusicRaT = commrat::CommRaT<
     AudioBlockOutput,
     ParameterEventOutput,
+    NoteEventOutput,
     DeckControlEventOutput,
     LevelMeterOutput,
     PlaybackStatusOutput,

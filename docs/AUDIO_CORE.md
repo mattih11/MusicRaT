@@ -75,6 +75,14 @@ The gain module is driven by its primary `AudioBlock` input and reads `Parameter
 
 Gain, mute, and polarity inversion share a configurable linear ramp measured in samples. One ramp state advances per frame and is shared by every active channel, so mono and multichannel streams have identical smoothing time. Invalid input produces an empty block with the original metadata and flags plus `AUDIO_BLOCK_INVALID`.
 
+## Stereo Panner
+
+`MusicRaTStereoPanner` converts one mono `AudioBlock` input into a two-channel output. It supports linear and equal-power pan laws over the normalized range `[-1, 1]`. Pan changes from persistent parameters or synchronized `ParameterEventBlock` events ramp the left and right gains independently without allocation or blocking work in the sample loop.
+
+The panner is deliberately a source-position processor, not a stereo balance control. Stereo balance and width belong to the planned channel-strip utility. Invalid blocks and non-mono inputs produce an empty block marked `AUDIO_BLOCK_INVALID`.
+
+Its descriptor declares a fixed one-channel input and two-channel output while preserving sample rate and clock domain. Format preflight therefore validates downstream stereo sinks and still propagates sample-rate mismatches across the channel transform.
+
 The null sink consumes audio blocks without producing output. It counts received and invalid blocks with relaxed atomics and provides a bounded headless graph terminus for launcher tests. Publishing those counters through a telemetry output remains future work.
 
 ## PCM16 WAV Sink
@@ -129,6 +137,6 @@ The source-only `sine_oscillator.json` remains a minimal descriptor/lifecycle ex
 
 ## Validation
 
-`musicrat_audio_block_test` serializes and deserializes an audio block and verifies format metadata, samples, and structural validation. `musicrat_gain_processor_test` covers stereo ramp timing, metadata and flag propagation, invalid-block handling, mute, and polarity inversion without starting CommRaT threads. These tests intentionally use the generated policy so CTest can validate custom configurations.
+`musicrat_audio_block_test` serializes and deserializes an audio block and verifies format metadata, samples, and structural validation. `musicrat_gain_processor_test` covers stereo ramp timing, metadata and flag propagation, invalid-block handling, mute, and polarity inversion without starting CommRaT threads. The panner tests cover pan-law endpoints and center gains, smoothed parameter events, mono-to-stereo conversion, invalid input, format propagation, descriptor generation, and routed stereo WAV output. These tests intentionally use the generated policy so CTest can validate custom configurations.
 
 Remaining contract work includes stream-format negotiation, richer parameter descriptors and value types, explicit late/duplicate event policy, endpoint identity, telemetry, and transport-size measurement under maximum block occupancy.

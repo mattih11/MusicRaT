@@ -9,6 +9,7 @@ set_property(CACHE MUSICRAT_SAMPLE_TYPE PROPERTY STRINGS float double)
 set(MUSICRAT_MAX_AUDIO_CHANNELS "8" CACHE STRING "Maximum channels in an audio block")
 set(MUSICRAT_MAX_AUDIO_FRAMES "4096" CACHE STRING "Maximum frames per audio block")
 set(MUSICRAT_MAX_PARAMETER_EVENTS "256" CACHE STRING "Maximum parameter events in one block")
+set(MUSICRAT_MAX_NOTE_EVENTS "256" CACHE STRING "Maximum note events in one block")
 set(MUSICRAT_FILE_PROXY_BYTES "262144" CACHE STRING "CoreRaT file-proxy buffer size in bytes")
 set(MUSICRAT_DEFAULT_SAMPLE_RATE_HZ "48000.0" CACHE STRING "Default sample rate in Hz")
 set(MUSICRAT_DEFAULT_BLOCK_PERIOD_MS "10" CACHE STRING "Default processing period in milliseconds")
@@ -17,7 +18,7 @@ if(NOT MUSICRAT_SAMPLE_TYPE MATCHES "^(float|double)$")
     message(FATAL_ERROR "MUSICRAT_SAMPLE_TYPE must be float or double")
 endif()
 
-foreach(setting MUSICRAT_MAX_AUDIO_CHANNELS MUSICRAT_MAX_AUDIO_FRAMES MUSICRAT_MAX_PARAMETER_EVENTS MUSICRAT_FILE_PROXY_BYTES MUSICRAT_DEFAULT_BLOCK_PERIOD_MS)
+foreach(setting MUSICRAT_MAX_AUDIO_CHANNELS MUSICRAT_MAX_AUDIO_FRAMES MUSICRAT_MAX_PARAMETER_EVENTS MUSICRAT_MAX_NOTE_EVENTS MUSICRAT_FILE_PROXY_BYTES MUSICRAT_DEFAULT_BLOCK_PERIOD_MS)
     if(NOT ${setting} MATCHES "^[1-9][0-9]*$")
         message(FATAL_ERROR "${setting} must be a positive integer")
     endif()
@@ -52,7 +53,7 @@ configure_file(
     @ONLY
 )
 
-message(STATUS "MusicRaT audio policy: ${MUSICRAT_SAMPLE_TYPE}, ${MUSICRAT_MAX_AUDIO_CHANNELS} channels, ${MUSICRAT_MAX_AUDIO_FRAMES} frames, ${MUSICRAT_MAX_PARAMETER_EVENTS} parameter events, ${MUSICRAT_FILE_PROXY_BYTES} file-proxy bytes, ${MUSICRAT_DEFAULT_SAMPLE_RATE_HZ} Hz, ${MUSICRAT_DEFAULT_BLOCK_PERIOD_MS} ms")
+message(STATUS "MusicRaT audio policy: ${MUSICRAT_SAMPLE_TYPE}, ${MUSICRAT_MAX_AUDIO_CHANNELS} channels, ${MUSICRAT_MAX_AUDIO_FRAMES} frames, ${MUSICRAT_MAX_PARAMETER_EVENTS} parameter events, ${MUSICRAT_MAX_NOTE_EVENTS} note events, ${MUSICRAT_FILE_PROXY_BYTES} file-proxy bytes, ${MUSICRAT_DEFAULT_SAMPLE_RATE_HZ} Hz, ${MUSICRAT_DEFAULT_BLOCK_PERIOD_MS} ms")
 
 # Set CMake prefix path to find packages
 list(APPEND CMAKE_PREFIX_PATH /usr/local/lib/cmake/CommRaT)
@@ -280,6 +281,13 @@ if(BUILD_MUSICRAT)
         musicrat_core
     )
 
+    commrat_module(musicrat_stereo_panner
+        SOURCES src/modules/stereo_panner_main.cpp
+        MODULE_CLASS MusicRaTStereoPanner
+        LINKS
+        musicrat_core
+    )
+
     commrat_module(musicrat_null_sink
         SOURCES src/modules/null_sink_main.cpp
         MODULE_CLASS MusicRaTNullSink
@@ -324,6 +332,7 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_parameter_source PRIVATE /W4)
         target_compile_options(musicrat_deck_control_source PRIVATE /W4)
         target_compile_options(musicrat_gain PRIVATE /W4)
+        target_compile_options(musicrat_stereo_panner PRIVATE /W4)
         target_compile_options(musicrat_null_sink PRIVATE /W4)
         target_compile_options(musicrat_wav_sink PRIVATE /W4)
         target_compile_options(musicrat_audio_file_player PRIVATE /W4)
@@ -335,6 +344,7 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_parameter_source PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_deck_control_source PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_gain PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_stereo_panner PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_null_sink PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_wav_sink PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_audio_file_player PRIVATE -Wall -Wextra -Wpedantic)
@@ -348,6 +358,7 @@ if(BUILD_MUSICRAT)
         musicrat_parameter_source
         musicrat_deck_control_source
         musicrat_gain
+        musicrat_stereo_panner
         musicrat_null_sink
         musicrat_wav_sink
         musicrat_audio_file_player
@@ -363,6 +374,12 @@ if(BUILD_TESTING)
     target_link_libraries(musicrat_audio_block_test PRIVATE musicrat_core)
     add_test(NAME musicrat.protocol.audio_block COMMAND musicrat_audio_block_test)
 
+    add_executable(musicrat_note_event_block_test
+        tests/protocol/note_event_block_test.cpp)
+    target_link_libraries(musicrat_note_event_block_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.protocol.note_event_block
+        COMMAND musicrat_note_event_block_test)
+
     add_executable(musicrat_transport_test tests/protocol/transport_test.cpp)
     target_link_libraries(musicrat_transport_test PRIVATE musicrat_core)
     add_test(NAME musicrat.protocol.transport COMMAND musicrat_transport_test)
@@ -375,9 +392,19 @@ if(BUILD_TESTING)
     target_link_libraries(musicrat_gain_test PRIVATE musicrat_core)
     add_test(NAME musicrat.dsp.gain COMMAND musicrat_gain_test)
 
+    add_executable(musicrat_stereo_panner_test tests/dsp/stereo_panner_test.cpp)
+    target_link_libraries(musicrat_stereo_panner_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.stereo_panner COMMAND musicrat_stereo_panner_test)
+
     add_executable(musicrat_gain_processor_test tests/dsp/gain_processor_test.cpp)
     target_link_libraries(musicrat_gain_processor_test PRIVATE musicrat_core)
     add_test(NAME musicrat.dsp.gain_processor COMMAND musicrat_gain_processor_test)
+
+    add_executable(musicrat_stereo_panner_processor_test
+        tests/dsp/stereo_panner_processor_test.cpp)
+    target_link_libraries(musicrat_stereo_panner_processor_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.stereo_panner_processor
+        COMMAND musicrat_stereo_panner_processor_test)
 
     add_executable(musicrat_varispeed_renderer_test
         tests/dsp/varispeed_renderer_test.cpp)
@@ -596,6 +623,13 @@ if(BUILD_TESTING)
                 "$<TARGET_FILE:musicrat_launcher>"
                 "${PROJECT_SOURCE_DIR}/examples/configs/tone_to_wav.json"
         )
+        add_test(
+            NAME musicrat.integration.tone_through_stereo_panner_to_wav
+            COMMAND musicrat_tone_to_wav_test
+                "$<TARGET_FILE:musicrat_launcher>"
+                "${PROJECT_SOURCE_DIR}/examples/configs/tone_through_stereo_panner_to_wav.json"
+                2
+        )
             add_test(
                 NAME musicrat.integration.tone_through_processors_to_wav
                 COMMAND musicrat_tone_to_wav_test
@@ -697,6 +731,7 @@ if(BUILD_TESTING)
         set_tests_properties(
             musicrat.integration.controlled_gain
             musicrat.integration.tone_to_wav
+            musicrat.integration.tone_through_stereo_panner_to_wav
             musicrat.integration.tone_through_processors_to_wav
             musicrat.integration.audio_file_player_to_wav
             musicrat.integration.audio_file_player_transport_sync_to_wav

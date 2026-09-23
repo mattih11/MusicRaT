@@ -116,6 +116,46 @@ commrat::AppDescription app(
     };
 }
 
+commrat::AppDescription panner_app(
+    double sample_rate_hz,
+    uint16_t sink_channel_count) {
+    std::vector<commrat::ModuleDescription> modules{
+        {
+            .name = "Oscillator_1",
+            .module_class = "Oscillator",
+            .module_address = std::nullopt,
+            .outputs = {{.system_id = 10, .instance_id = 1}},
+            .inputs = {},
+            .synced_inputs = std::nullopt,
+            .remotes = std::nullopt,
+            .period_ms = std::nullopt,
+            .params = generic(SourceParams{sample_rate_hz}),
+        },
+        passthrough("Panner_1", "Panner", 2, 1),
+        {
+            .name = "WavSink_1",
+            .module_class = "WavSink",
+            .module_address = commrat::ModuleAddressDescription{
+                .system_id = 20, .instance_id = 1},
+            .outputs = {},
+            .inputs = {{
+                .source_system_id = 10,
+                .source_instance_id = 2,
+            }},
+            .synced_inputs = std::nullopt,
+            .remotes = std::nullopt,
+            .period_ms = std::nullopt,
+            .params = generic(SinkParams{48000.0, sink_channel_count}),
+        },
+    };
+    return {
+        .app_name = "PannerFormatValidation",
+        .modules = std::move(modules),
+        .descriptor_dirs = std::nullopt,
+        .companions = std::nullopt,
+    };
+}
+
 bool fails_with(const commrat::AppDescription& description,
                 const DescriptorMap& descriptors,
                 const std::string& expected) {
@@ -147,6 +187,11 @@ int main() {
         "LevelMeter", {"CommRaT::Messages::AudioBlock"},
         {"CommRaT::Messages::AudioBlock"},
         musicrat::launcher::audio_passthrough_metadata(), generic(EmptyParams{})));
+    descriptors.emplace("Panner", descriptor(
+        "Panner", {"CommRaT::Messages::AudioBlock"},
+        {"CommRaT::Messages::AudioBlock"},
+        musicrat::launcher::audio_channel_transform_metadata(1, 2),
+        generic(EmptyParams{})));
 
     musicrat::launcher::validate_audio_formats(app(48000.0, 1), descriptors);
     assert(fails_with(app(44100.0, 1), descriptors, "sample-rate mismatch"));
@@ -154,5 +199,11 @@ int main() {
     musicrat::launcher::validate_audio_formats(app(48000.0, 1, true), descriptors);
     assert(fails_with(
         app(44100.0, 1, true), descriptors, "sample-rate mismatch"));
+    musicrat::launcher::validate_audio_formats(
+        panner_app(48000.0, 2), descriptors);
+    assert(fails_with(
+        panner_app(48000.0, 1), descriptors, "channel-count mismatch"));
+    assert(fails_with(
+        panner_app(44100.0, 2), descriptors, "sample-rate mismatch"));
     return 0;
 }

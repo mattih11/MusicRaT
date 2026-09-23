@@ -2,7 +2,7 @@
 
 ## 1. Purpose and Status
 
-This document is the normative architecture for MusicRaT data flow, control flow, launcher configuration, and future RatGUI graph editing. Implementations should follow it unless a later decision explicitly updates this document.
+This document is the normative architecture for MusicRaT data flow, control flow, and launcher configuration. [Application Designer, Control Surfaces, and Presentation Architecture](APPLICATION_DESIGNER.md) defines the shared RatGUI/LVGL, hardware-control, binding, and user-facing application-design model. Implementations should follow both unless a later decision explicitly updates them.
 
 Status terms used here:
 
@@ -28,7 +28,7 @@ flowchart LR
     Control --> Processor
     Processor --> Sink[Audio sink]
     Processor --> Telemetry[Telemetry producer]
-    Telemetry --> GUI[RatGUI]
+    Telemetry --> GUI[RatGUI or LVGL]
 ```
 
 ### 2.1 Graph Terms
@@ -223,7 +223,7 @@ Feedback must carry an origin/binding identifier or equivalent suppression state
 
 ## 7. Note Domain
 
-### 7.1 `NoteEventBlock` (Planned)
+### 7.1 `NoteEventBlock`
 
 Notes remain separate from generic controls. The bounded event set supports:
 
@@ -235,6 +235,8 @@ Notes remain separate from generic controls. The bounded event set supports:
 - Source endpoint and sequence identity
 
 The MIDI adapter converts MIDI 1.0 messages into this model. MIDI 2.0, computer keyboard, sequencers, and other sources produce the same semantic events.
+
+The core note contract is independent of MusicXML and raw MIDI encoding. MIDI parsing, running status, device timestamps, and channel filtering belong to backend adapter modules; instruments consume only `NoteEventBlock`. MusicXML conversion remains a separate, later producer of the same events.
 
 Lossless note-edge delivery is mandatory. A latest-value snapshot is insufficient because a note-on and note-off may occur in one quantum. The event scheduler must batch every edge for the target interval or report overflow explicitly.
 
