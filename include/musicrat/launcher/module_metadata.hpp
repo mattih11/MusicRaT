@@ -37,6 +37,12 @@ inline constexpr const char* PARAMETER_SCALE_LINEAR = "linear";
 inline constexpr const char* PARAMETER_SCALE_LOGARITHMIC = "logarithmic";
 inline constexpr const char* PARAMETER_SCALE_DECIBEL = "decibel";
 
+inline constexpr const char* SEMANTIC_KIND_CONTINUOUS = "continuous";
+inline constexpr const char* SEMANTIC_KIND_BOOLEAN = "boolean";
+inline constexpr const char* SEMANTIC_KIND_CHOICE = "choice";
+inline constexpr const char* SEMANTIC_KIND_TRIGGER = "trigger";
+inline constexpr const char* SEMANTIC_KIND_TEXT = "text";
+
 struct PhysicalPortDescriptor {
     std::string id;
     std::string display_name;
@@ -78,6 +84,41 @@ struct ParameterModuleMetadata {
     std::vector<ParameterDescriptor> parameters;
 };
 
+struct ActionDescriptor {
+    std::string id;
+    std::string display_name;
+    std::string group;
+    std::string input_port_id;
+    std::string kind;
+    uint32_t event_type{0};
+    double minimum{0.0};
+    double maximum{1.0};
+    double default_value{0.0};
+};
+
+struct ActionModuleMetadata {
+    uint32_t schema_version{1};
+    std::vector<ActionDescriptor> actions;
+};
+
+struct ObservableDescriptor {
+    std::string id;
+    std::string display_name;
+    std::string group;
+    std::string output_port_id;
+    std::string selector;
+    std::string kind;
+    std::string unit;
+    double minimum{0.0};
+    double maximum{1.0};
+    bool channel_selectable{false};
+};
+
+struct ObservableModuleMetadata {
+    uint32_t schema_version{1};
+    std::vector<ObservableDescriptor> observables;
+};
+
 namespace detail {
 
 inline std::optional<std::string> payload_domain(const std::string& payload) {
@@ -92,6 +133,9 @@ inline std::optional<std::string> payload_domain(const std::string& payload) {
     if (payload == "CommRaT::Messages::ControlEventBlock") {
         return PORT_DOMAIN_CONTROL;
     }
+    if (payload == "CommRaT::Messages::ControlFeedbackBlock") {
+        return PORT_DOMAIN_CONTROL;
+    }
     if (payload == "CommRaT::Messages::ParameterStateBlock") {
         return PORT_DOMAIN_PARAMETER;
     }
@@ -99,7 +143,8 @@ inline std::optional<std::string> payload_domain(const std::string& payload) {
         return PORT_DOMAIN_TRANSPORT;
     }
     if (payload == "CommRaT::Messages::LevelMeterBlock"
-        || payload == "CommRaT::Messages::PlaybackStatusBlock") {
+        || payload == "CommRaT::Messages::PlaybackStatusBlock"
+        || payload == "CommRaT::Messages::WidgetUpdateBlock") {
         return PORT_DOMAIN_TELEMETRY;
     }
     return std::nullopt;
@@ -137,6 +182,14 @@ inline bool valid_parameter_scale(const std::string& scale) noexcept {
     return scale == PARAMETER_SCALE_LINEAR
         || scale == PARAMETER_SCALE_LOGARITHMIC
         || scale == PARAMETER_SCALE_DECIBEL;
+}
+
+inline bool valid_semantic_kind(const std::string& kind) noexcept {
+    return kind == SEMANTIC_KIND_CONTINUOUS
+        || kind == SEMANTIC_KIND_BOOLEAN
+        || kind == SEMANTIC_KIND_CHOICE
+        || kind == SEMANTIC_KIND_TRIGGER
+        || kind == SEMANTIC_KIND_TEXT;
 }
 
 inline std::string port_key(const PhysicalPortDescriptor& port) {
@@ -267,6 +320,81 @@ inline void validate_module_metadata(const commrat::ModuleDescriptor& descriptor
                 }
             } else if (!parameter.choices.empty()) {
                 invalid("only choice parameters may declare choices");
+            }
+        }
+    }
+
+    const auto ports = [&]() -> std::optional<PortModuleMetadata> {
+        const auto value = object->get("musicrat_ports");
+        if (!value) return std::nullopt;
+        const auto parsed = rfl::json::read<
+            PortModuleMetadata, rfl::DefaultIfMissing>(
+            rfl::json::write(value.value()));
+        return parsed ? std::optional<PortModuleMetadata>{*parsed} : std::nullopt;
+    }();
+    const auto find_port = [&ports](const std::string& id) -> const PhysicalPortDescriptor* {
+        if (!ports) return nullptr;
+        for (const auto& port : ports->ports) {
+            if (port.id == id) return &port;
+        }
+        return nullptr;
+    };
+
+    if (const auto value = object->get("musicrat_actions")) {
+        const auto parsed = rfl::json::read<
+            ActionModuleMetadata, rfl::DefaultIfMissing>(
+            rfl::json::write(value.value()));
+        if (!parsed || parsed->schema_version != 1) {
+            throw std::runtime_error(
+                "[MusicRaT] Invalid action metadata for module_class '"
+                + descriptor.module_class + "'");
+        }
+        std::unordered_set<std::string> ids;
+        for (const auto& action : parsed->actions) {
+            const auto* port = find_port(action.input_port_id);
+            if (action.id.empty() || !ids.insert(action.id).second
+                || action.display_name.empty() || action.group.empty()
+                || !detail::valid_semantic_kind(action.kind)
+                || port == nullptr
+                || (port->direction != PORT_DIRECTION_INPUT
+                    && port->direction != PORT_DIRECTION_SYNCED_INPUT)
+                || !std::isfinite(action.minimum)
+                || !std::isfinite(action.maximum)
+                || !std::isfinite(action.default_value)
+                || action.minimum > action.maximum
+                || action.default_value < action.minimum
+                || action.default_value > action.maximum) {
+                throw std::runtime_error(
+                    "[MusicRaT] Invalid action metadata for module_class '"
+                    + descriptor.module_class + "', action '" + action.id + "'");
+            }
+        }
+    }
+
+    if (const auto value = object->get("musicrat_observables")) {
+        const auto parsed = rfl::json::read<
+            ObservableModuleMetadata, rfl::DefaultIfMissing>(
+            rfl::json::write(value.value()));
+        if (!parsed || parsed->schema_version != 1) {
+            throw std::runtime_error(
+                "[MusicRaT] Invalid observable metadata for module_class '"
+                + descriptor.module_class + "'");
+        }
+        std::unordered_set<std::string> ids;
+        for (const auto& observable : parsed->observables) {
+            const auto* port = find_port(observable.output_port_id);
+            if (observable.id.empty() || !ids.insert(observable.id).second
+                || observable.display_name.empty() || observable.group.empty()
+                || observable.selector.empty()
+                || !detail::valid_semantic_kind(observable.kind)
+                || port == nullptr || port->direction != PORT_DIRECTION_OUTPUT
+                || !std::isfinite(observable.minimum)
+                || !std::isfinite(observable.maximum)
+                || observable.minimum > observable.maximum) {
+                throw std::runtime_error(
+                    "[MusicRaT] Invalid observable metadata for module_class '"
+                    + descriptor.module_class + "', observable '"
+                    + observable.id + "'");
             }
         }
     }

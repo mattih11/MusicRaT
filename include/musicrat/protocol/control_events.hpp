@@ -51,3 +51,26 @@ struct ControlEventBlock {
 };
 
 } // namespace CommRaT::Messages
+
+namespace CommRaT::Parameters {
+
+inline constexpr uint32_t CONTROL_SOURCE_DEVICE_ID_PARAMETER_ID = 1;
+inline constexpr uint32_t CONTROL_SOURCE_ENDPOINT_ID_PARAMETER_ID = 2;
+inline constexpr uint32_t CONTROL_SOURCE_ORIGIN_ID_PARAMETER_ID = 3;
+inline constexpr uint32_t CONTROL_SOURCE_KIND_PARAMETER_ID = 4;
+inline constexpr uint32_t CONTROL_SOURCE_VALUE_PARAMETER_ID = 5;
+inline constexpr uint32_t CONTROL_SOURCE_GESTURE_FLAGS_PARAMETER_ID = 6;
+inline constexpr uint32_t CONTROL_SOURCE_ENABLED_PARAMETER_ID = 7;
+
+struct ControlSource {
+    CommRaT::Messages::ControlDeviceId device_id{1};
+    CommRaT::Messages::ControlEndpointId endpoint_id{1};
+    CommRaT::Messages::ControlOriginId origin_id{1};
+    CommRaT::Messages::ControlEventKind kind{
+        CommRaT::Messages::CONTROL_UNIPOLAR};
+    double value{0.0};
+    uint16_t gesture_flags{0};
+    bool enabled{true};
+};
+
+} // namespace CommRaT::Parameters

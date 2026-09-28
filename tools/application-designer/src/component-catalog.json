@@ -1,0 +1,10 @@
+[
+  { "id": "knob-25mm", "name": "Knob", "kind": "control", "visual": "knob", "width_mm": 25, "height_mm": 25, "driver_class": "absolute-analog", "endpoint": { "direction": "input", "domain": "unipolar", "capabilities": ["absolute"] } },
+  { "id": "fader-60mm", "name": "Fader", "kind": "control", "visual": "fader", "width_mm": 22, "height_mm": 80, "driver_class": "absolute-analog", "endpoint": { "direction": "input", "domain": "unipolar", "capabilities": ["absolute"] } },
+  { "id": "motor-fader-100mm", "name": "Motor fader", "kind": "control", "visual": "motor-fader", "width_mm": 28, "height_mm": 120, "driver_class": "motor-fader", "endpoint": { "direction": "bidirectional", "domain": "unipolar", "capabilities": ["absolute", "feedback", "motorized", "touch-sensitive"] } },
+  { "id": "encoder-20mm", "name": "Encoder", "kind": "control", "visual": "encoder", "width_mm": 22, "height_mm": 22, "driver_class": "quadrature-encoder", "endpoint": { "direction": "input", "domain": "relative", "capabilities": ["relative"] } },
+  { "id": "button-16mm", "name": "Button", "kind": "control", "visual": "button", "width_mm": 18, "height_mm": 18, "driver_class": "digital-input", "endpoint": { "direction": "input", "domain": "boolean", "capabilities": ["momentary"] } },
+  { "id": "switch-20mm", "name": "Switch", "kind": "control", "visual": "switch", "width_mm": 20, "height_mm": 28, "driver_class": "digital-input", "endpoint": { "direction": "input", "domain": "boolean", "capabilities": ["latched"] } },
+  { "id": "touch-display-5in", "name": "5-inch touch display", "kind": "display", "visual": "touch-display", "width_mm": 121, "height_mm": 76, "driver_class": "lvgl-touch-display", "touch": true },
+  { "id": "display-3in", "name": "3-inch display", "kind": "display", "visual": "display", "width_mm": 74, "height_mm": 48, "driver_class": "lvgl-display", "touch": false }
+]

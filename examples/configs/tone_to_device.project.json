@@ -1,0 +1,99 @@
+{
+  "app_name": "MusicRaTToneToDeviceLvgl",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.15,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "Gain_1",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 1 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "gain": 1.0,
+        "smoothing_samples": 64,
+        "muted": false,
+        "invert_polarity": false
+      }
+    },
+    {
+      "name": "AudioDeviceSink_1",
+      "module_class": "MusicRaTAudioDeviceSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "device_name": "",
+        "sample_rate_hz": 48000,
+        "channel_count": 1,
+        "period_frames": 480
+      }
+    }
+  ],
+  "musicrat_control": {
+    "schema_version": 1,
+    "devices": [],
+    "bindings": [
+      {
+        "id": "gain-binding",
+        "source": { "owner_id": "display-tone-control", "endpoint_id": "gain" },
+        "target": { "module_id": "Gain_1", "parameter_id": 1 },
+        "mode": "absolute"
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "display-tone-control",
+        "display_name": "Tone Output",
+        "target": "lvgl",
+        "endpoints": [
+          {
+            "id": "gain",
+            "display_name": "Output Gain",
+            "direction": "input",
+            "domain": "unipolar",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        ],
+        "widgets": [
+          {
+            "id": "gain",
+            "kind": "slider",
+            "display_name": "Output Gain",
+            "layout": { "x": 10, "y": 45, "width": 80, "height": 16 },
+            "route": "control",
+            "endpoint_id": "gain"
+          }
+        ]
+      }
+    ],
+    "observation_bindings": [],
+    "deck": {
+      "schema_version": 1,
+      "panel": { "width_mm": 120, "height_mm": 68, "thickness_mm": 3 },
+      "elements": [
+        {
+          "id": "display-1",
+          "component_id": "touch-display-5in",
+          "display_name": "Tone Output Display",
+          "position": { "x_mm": 0, "y_mm": 0 }
+        }
+      ]
+    }
+  }
+}

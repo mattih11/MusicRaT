@@ -62,7 +62,10 @@ function validateEndpoint(endpoint) {
 function validateControlProject(control, modules) {
   if (!record(control) || control.schema_version !== 1
       || !Array.isArray(control.devices) || !Array.isArray(control.bindings)
-      || !Array.isArray(control.surfaces)) {
+      || !Array.isArray(control.surfaces)
+      || (control.action_bindings !== undefined && !Array.isArray(control.action_bindings))
+      || (control.observation_bindings !== undefined
+        && !Array.isArray(control.observation_bindings))) {
     invalid('musicrat_control must use schema_version 1 and contain device, binding, and surface arrays.')
   }
 
@@ -132,6 +135,45 @@ function validateControlProject(control, modules) {
     }
   }
 
+  const actionBindings = control.action_bindings ?? []
+  requireUniqueIds(actionBindings, 'Action binding')
+  const actionBindingIds = new Set()
+  for (const binding of actionBindings) {
+    if (bindingIds.has(binding.id)) {
+      invalid('Parameter and action binding IDs must be nonempty and unique.')
+    }
+    actionBindingIds.add(binding.id)
+    if (!record(binding.source)
+        || !endpoints.has(`${binding.source.owner_id}:${binding.source.endpoint_id}`)) {
+      invalid(`Action binding '${binding.id}' references a missing source endpoint.`)
+    }
+    if (!record(binding.target) || !moduleIds.has(binding.target.module_id)
+        || typeof binding.target.action_id !== 'string' || !binding.target.action_id.trim()) {
+      invalid(`Action binding '${binding.id}' has an invalid target action.`)
+    }
+    if (!['immediate', 'beat', 'bar'].includes(binding.quantization)
+        || (binding.ramp_frames !== undefined
+          && (!Number.isInteger(binding.ramp_frames) || binding.ramp_frames < 0))) {
+      invalid(`Action binding '${binding.id}' has invalid timing.`)
+    }
+  }
+
+  const observationBindings = control.observation_bindings ?? []
+  requireUniqueIds(observationBindings, 'Observation binding')
+  const observationBindingIds = new Set(observationBindings.map((binding) => binding.id))
+  for (const binding of observationBindings) {
+    if (!record(binding.source) || !moduleIds.has(binding.source.module_id)
+        || typeof binding.source.observable_id !== 'string'
+        || !binding.source.observable_id.trim()
+        || (binding.source.channel !== undefined
+          && (!Number.isInteger(binding.source.channel) || binding.source.channel < 0))) {
+      invalid(`Observation binding '${binding.id}' has an invalid source.`)
+    }
+    if (!record(binding.target) || !['value', 'active', 'text'].includes(binding.target.property)) {
+      invalid(`Observation binding '${binding.id}' has an invalid target.`)
+    }
+  }
+
   for (const surface of control.surfaces) {
     if (!surfaceTargets.has(surface.target) || !Array.isArray(surface.widgets)) {
       invalid(`Surface '${surface.id}' has invalid metadata.`)
@@ -149,6 +191,21 @@ function validateControlProject(control, modules) {
       if (widget.binding_id !== undefined && !bindingIds.has(widget.binding_id)) {
         invalid(`Widget '${widget.id}' references a missing binding.`)
       }
+      if (widget.action_binding_id !== undefined
+          && !actionBindingIds.has(widget.action_binding_id)) {
+        invalid(`Widget '${widget.id}' references a missing action binding.`)
+      }
+      if (widget.observation_binding_id !== undefined
+          && !observationBindingIds.has(widget.observation_binding_id)) {
+        invalid(`Widget '${widget.id}' references a missing observation binding.`)
+      }
+    }
+  }
+  const widgets = new Set(control.surfaces.flatMap((surface) =>
+    surface.widgets.map((widget) => `${surface.id}:${widget.id}`)))
+  for (const binding of observationBindings) {
+    if (!widgets.has(`${binding.target.surface_id}:${binding.target.widget_id}`)) {
+      invalid(`Observation binding '${binding.id}' references a missing target widget.`)
     }
   }
 }

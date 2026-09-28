@@ -2,17 +2,84 @@
   "app_name": "MusicRaTControlledGain",
   "modules": [
     {
-      "name": "ParameterSource_1",
-      "module_class": "MusicRaTParameterSource",
+      "name": "ControlSource_1",
+      "module_class": "MusicRaTControlSource",
       "outputs": [
         { "system_id": 20, "instance_id": 1 }
       ],
       "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 20, "source_instance_id": 4 }
+      ],
       "period_ms": 10,
       "params": {
-        "source_endpoint_id": 1,
-        "parameter_id": 1,
-        "value": 0.5
+        "device_id": 1,
+        "endpoint_id": 1,
+        "origin_id": 1,
+        "kind": 0,
+        "value": 0.125,
+        "gesture_flags": 2,
+        "enabled": true
+      }
+    },
+    {
+      "name": "ControlFeedbackRouter_1",
+      "module_class": "MusicRaTControlFeedbackRouter",
+      "outputs": [
+        { "system_id": 20, "instance_id": 4 }
+      ],
+      "inputs": [
+        { "source_system_id": 20, "source_instance_id": 3 }
+      ],
+      "params": {
+        "bindings": [
+          {
+            "binding_id": 1,
+            "target_parameter_id": 1,
+            "destination_device_id": 1,
+            "destination_endpoint_id": 1,
+            "suppress_origin_id": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "ControlMapper_1",
+      "module_class": "MusicRaTControlMapper",
+      "outputs": [
+        { "system_id": 20, "instance_id": 2 }
+      ],
+      "inputs": [
+        { "source_system_id": 20, "source_instance_id": 1 }
+      ],
+      "synced_inputs": [
+        { "source_system_id": 20, "source_instance_id": 3 }
+      ],
+      "params": {
+        "bindings": [
+          {
+            "binding_id": 1,
+            "source_device_id": 1,
+            "source_endpoint_id": 1,
+            "target_parameter_id": 1,
+            "source_kind": 0,
+            "mode": 0,
+            "curve": 0,
+            "pickup": 0,
+            "source_minimum": 0.0,
+            "source_maximum": 1.0,
+            "target_minimum": 0.0,
+            "target_maximum": 4.0,
+            "scale": 1.0,
+            "offset": 0.0,
+            "dead_zone": 0.0,
+            "quantization": 0.0,
+            "hysteresis": 0.0,
+            "pickup_tolerance": 0.01,
+            "initial_value": 1.0,
+            "invert": false
+          }
+        ]
       }
     },
     {
@@ -35,13 +102,14 @@
       "name": "Gain_1",
       "module_class": "MusicRaTGain",
       "outputs": [
-        { "system_id": 10, "instance_id": 2 }
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 3 }
       ],
       "inputs": [
         { "source_system_id": 10, "source_instance_id": 1 }
       ],
       "synced_inputs": [
-        { "source_system_id": 20, "source_instance_id": 1 }
+        { "source_system_id": 20, "source_instance_id": 2 }
       ],
       "params": {
         "gain": 1.0,

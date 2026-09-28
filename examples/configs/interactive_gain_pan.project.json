@@ -1,0 +1,132 @@
+{
+  "app_name": "MusicRaTInteractiveGainPan",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.15,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "Gain_1",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 3 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "gain": 1.0,
+        "smoothing_samples": 64,
+        "muted": false,
+        "invert_polarity": false
+      }
+    },
+    {
+      "name": "StereoPanner_1",
+      "module_class": "MusicRaTStereoPanner",
+      "outputs": [{ "system_id": 10, "instance_id": 3 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "pan": 0.0,
+        "pan_law": 1,
+        "smoothing_samples": 64
+      }
+    },
+    {
+      "name": "AudioDeviceSink_1",
+      "module_class": "MusicRaTAudioDeviceSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": {
+        "device_name": "",
+        "sample_rate_hz": 48000,
+        "channel_count": 2,
+        "period_frames": 480
+      }
+    }
+  ],
+  "musicrat_control": {
+    "schema_version": 1,
+    "devices": [],
+    "bindings": [
+      {
+        "id": "gain-binding",
+        "source": { "owner_id": "display-channel-strip", "endpoint_id": "gain" },
+        "target": { "module_id": "Gain_1", "parameter_id": 1 },
+        "mode": "absolute"
+      },
+      {
+        "id": "pan-binding",
+        "source": { "owner_id": "display-channel-strip", "endpoint_id": "pan" },
+        "target": { "module_id": "StereoPanner_1", "parameter_id": 1 },
+        "mode": "absolute"
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "display-channel-strip",
+        "display_name": "Gain and Pan",
+        "target": "lvgl",
+        "endpoints": [
+          {
+            "id": "gain",
+            "display_name": "Gain",
+            "direction": "input",
+            "domain": "unipolar",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          {
+            "id": "pan",
+            "display_name": "Pan",
+            "direction": "input",
+            "domain": "unipolar",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        ],
+        "widgets": [
+          {
+            "id": "gain",
+            "kind": "fader",
+            "display_name": "Gain",
+            "layout": { "x": 16, "y": 24, "width": 22, "height": 64 },
+            "route": "control",
+            "endpoint_id": "gain"
+          },
+          {
+            "id": "pan",
+            "kind": "knob",
+            "display_name": "Pan",
+            "layout": { "x": 58, "y": 30, "width": 30, "height": 40 },
+            "route": "control",
+            "endpoint_id": "pan"
+          }
+        ]
+      }
+    ],
+    "observation_bindings": [],
+    "deck": {
+      "schema_version": 1,
+      "panel": { "width_mm": 180, "height_mm": 108, "thickness_mm": 3 },
+      "elements": [
+        {
+          "id": "display-1",
+          "component_id": "touch-display-5in",
+          "display_name": "Gain and Pan Display",
+          "position": { "x_mm": 0, "y_mm": 0 }
+        }
+      ]
+    }
+  }
+}

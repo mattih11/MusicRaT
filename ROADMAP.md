@@ -134,11 +134,11 @@ Streaming control signals such as knob motion, gates, note events, and automatio
 ### Required Example Launch Configs
 
 - [~] `tone_to_wav.json`: oscillator -> WAV sink is implemented; gain remains to be inserted
-- [ ] `tone_to_device.json`: oscillator -> gain -> audio device sink
+- [x] `tone_to_device.json`: oscillator -> gain -> audio device sink
 - [ ] `stereo_channel_strip.json`: stereo source -> EQ -> compressor -> pan/gain -> meter -> sink
 - [ ] `mixer.json`: multiple sources -> fixed-capacity mixer -> limiter -> sink
 - [ ] `midi_synth.json`: MIDI input -> voice/instrument control input, instrument audio -> sink
-- [~] `hardware_control.json`: deterministic control source -> gain exists; hardware adapter, mapper, and feedback remain
+- [~] `controlled_gain.json`: virtual semantic source -> mapper -> gain -> loop-suppressed virtual endpoint feedback is implemented; simulated hardware remains
 - [ ] `ratgui_session.json`: an audio graph plus RatGUI companion and telemetry routes
 - [ ] `offline_render.json`: musical/file source -> processing graph -> WAV sink
 - [~] Add short-duration CTest smoke runs for every headless launch config
@@ -151,9 +151,13 @@ before implementing further DSP modules. The implementation remains generic,
 while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
 
-**Next implementation focus:** add semantic control adapter configuration and a
-virtual control source so a generated mapper route can be exercised end to end.
-This does not give the designer ownership of application lifecycle.
+**Next implementation focus:** expand Designer-authored LVGL surfaces and have
+strict export materialize their runtime modules and routes. Add richer display
+widgets and semantic interaction for configured on-screen controls without
+turning LVGL into a hardware-input layer. Physical knobs, encoders, buttons,
+switches, and faders remain device-adapter endpoints. DRM/KMS target validation,
+Linux input devices, EVL/RaTOS, and RatGUI remain deferred until the relevant
+hardware or runtime environment is available.
 
 - [~] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
   - [x] Add schema-versioned stable IDs and labels for physical module ports
@@ -165,13 +169,55 @@ This does not give the designer ownership of application lifecycle.
   - [ ] Add frequency/custom display mappings and explicit smoothing policy
 - [x] Define bounded semantic control events and parameter-state feedback with origin IDs
 - [x] Define serializable device, endpoint, binding, transform, and surface schemas
+- [~] Define one authoritative physical deck and deployment schema
+  - [x] Replace editable electrical assignments with JSON-catalog component instances
+  - [x] Derive devices, endpoints, and LVGL surfaces from placed components
+  - [x] Compile a logical driver manifest; let driver profiles allocate electrical resources
+  - [~] Add visual placement for hardware controls and displays
+    - [x] Add a top-level Hardware workspace with catalog-defined geometry and direct parameter routing
+    - [x] Add direct drag placement, editable deck dimensions, and configurable grid snapping
+    - [ ] Add direct resize, rotation handles, and alignment tools
+  - [ ] Validate logical deck requirements against external driver-profile capabilities
+  - [ ] Generate CAD, cutting, and STL artifacts from the same physical model
 - [x] Implement and test a headless mapping engine independent of GUI and hardware backends
   - [x] Wrap the kernel in a launchable `MusicRaTControlMapper` module
   - [x] Compile stable project IDs and transforms into bounded mapper parameters
   - [x] Materialize generated mapper modules and positional routes during strict export
+  - [x] Exercise a virtual semantic source -> mapper -> gain route through the launcher
+  - [x] Publish authoritative Gain state and compile its synchronization route back to the mapper
+  - [x] Compile bounded feedback routers and suppress reflexive endpoint updates by origin ID
+- [x] Define and execute semantic action bindings independently of startup parameters
+  - [x] Publish stable action descriptors for AudioFilePlayer deck controls
+  - [x] Implement bounded `ControlEventBlock` -> `DeckControlEventBlock` mapping
+  - [x] Wrap the kernel in a launchable `MusicRaTActionMapper` module
+  - [x] Materialize generated action mappers and declared target-port routes during strict export
+  - [x] Exercise a semantic source -> action mapper -> AudioFilePlayer route through the launcher
+- [~] Define read-only observation bindings for GUI and device presentation
+  - [x] Publish observable descriptors for playback status, transport, and level metering
+  - [x] Validate and edit observable-to-widget bindings with optional channel selection
+  - [x] Preserve observation bindings in deterministic LVGL artifacts
+  - [x] Compile LevelMeter bindings into a typed adapter and renderer-neutral widget updates
+  - [x] Exercise LevelMeter -> UI adapter routing through the launcher
+  - [x] Export the LVGL manifest and apply widget updates to real LVGL objects
+  - [x] Connect a CommRaT subscriber to a lifecycle-owned LVGL thread
+  - [~] Connect the LVGL thread to platform display drivers
+    - [x] Add an SDL2 desktop window backend for local surface preview
+    - [x] Add direct DRM/KMS and legacy fbdev backends for console-only Linux
+    - [ ] Later validate DRM/KMS output on a physical target and record the supported image/device
+  - [x] Materialize one LVGL sink per observed display during strict export
+  - [x] Add a bounded widget-update merger for multiple observation adapter streams
+  - [~] Expand the LVGL renderer to the Designer's supported display-widget catalog
+    - [x] Render meter, toggle, text, slider, knob, and button widgets
+    - [x] Render fader and choice widgets
+  - [x] Emit semantic control/action events from configured interactive on-screen widgets
+  - [ ] Add touchscreen pointer input only when a deployed display requires it
+  - [ ] Subscribe and render widget updates in RatGUI
 - [~] Extend project validation and round-trip persistence for bindings and presentation state
-  - [x] Validate and preserve devices, endpoints, bindings, transforms, surfaces, and widgets
-  - [ ] Add designer editors for bindings and presentation state
+  - [x] Validate and preserve devices, endpoints, parameter/action/observation bindings, transforms, surfaces, and widgets
+  - [x] Add a designer editor for bindings, transforms, pickup, and feedback endpoints
+  - [x] Add an independently arranged binding canvas for endpoint-to-parameter routing
+  - [x] Derive renderer-neutral deck endpoints and LVGL surfaces from hardware components
+  - [x] Add a top-level UI workspace for normalized widget placement and control/feedback routing
 - [~] Have the designer directly edit pre-launch CommRaT module and route JSON without an intermediate graph format
   - [x] Add the initial React/TypeScript editor under `tools/application-designer`
   - [x] Import descriptors/configs, validate typed stable-ID edges, and export positional CommRaT routes
@@ -181,8 +227,9 @@ This does not give the designer ownership of application lifecycle.
     - [x] Discover, validate, and serve installed descriptors
     - [x] Add revision-aware atomic project writes in the local host
   - [ ] Define a future handoff to an external launcher/controller after runtime ownership and failure-recovery semantics are specified; the designer does not directly own application lifecycle today
-- [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture
+- [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture, including live observations
 - [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
+- [ ] Implement host-side ESP32 and MIDI adapter modules against the shared semantic endpoint contract
 
 ## Phase 2: Essential DSP Modules
 
@@ -192,7 +239,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
 
 - [x] Gain with click-free ramping, mute, and polarity inversion
 - [x] Mono-to-stereo panner with selectable linear and equal-power pan laws
-- [ ] Channel mapper: mono/stereo conversion, swap, copy, and matrix routing
+- [x] Channel mapper: mono/stereo conversion, swap, copy, and matrix routing
 - [ ] Configurable mono/stereo channel-strip utility
   - Compose the channel mapper, gain, and panner kernels without duplicating DSP
   - Mono-to-stereo panning plus stereo balance and width controls
@@ -360,7 +407,9 @@ A binding is persistent graph data from one control endpoint to one target param
 - [ ] Allow one-to-many mappings and define how multiple sources arbitrate one parameter
 - [ ] Put smoothing at the parameter boundary; keep mapping transforms deterministic
 - [ ] Support conditional mappings such as modifier buttons, banks, pages, and MIDI channels
-- [ ] Support bidirectional feedback for LEDs, displays, and motorized controls without feedback loops
+- [~] Support bidirectional feedback for LEDs, displays, and motorized controls without feedback loops
+  - [x] Add the protocol, headless router, generated routes, and virtual-adapter proof
+  - [ ] Add protocol-specific hardware feedback adapters
 - [ ] Persist mappings independently from transient device connection state
 
 ### Graphical Routing
@@ -370,7 +419,9 @@ A binding is persistent graph data from one control endpoint to one target param
 - [ ] Provide audio, note, control, transport, and telemetry layers or filters in RatGUI
 - [ ] Use domain-specific port styling and show compatibility before a connection is made
 - [ ] Insert an editable mapping node when a route needs scaling, curves, gating, or mode conversion
-- [ ] Add control-learn mode: select a target, move hardware, preview the mapping, then confirm
+- [~] Add control-learn mode: select a target, move hardware, preview the mapping, then confirm
+  - [x] Add simulated semantic observations, compatibility inference, preview, and confirmation
+  - [ ] Accept live observations from an external launcher/controller
 - [ ] Show live values, event activity, clipping/out-of-range state, connection health, and the effective transformed value
 - [ ] Clearly display missing hardware while retaining its routes and settings
 - [ ] Make route creation, deletion, and mapping edits undoable and session-persistent
@@ -400,15 +451,18 @@ A binding is persistent graph data from one control endpoint to one target param
 
 Keep backend callbacks minimal: adapt buffers, transfer bounded data, update counters, and return.
 
-- [ ] Select the first backend and document platform scope
-  - Candidates: JACK/PipeWire for Linux-first development, ALSA for direct access, RtAudio or miniaudio for portability
+Published device telemetry, enumeration, and runtime selection are deferred until
+RatGUI has audio-device status and settings surfaces that can consume them.
+
+- [x] Select the first backend and document platform scope
+  - PipeWire is the Linux development-host backend; EVL tinyalsa is reserved for strict OOB target builds
 - [ ] Audio device enumeration and capability reporting
-- [ ] Audio output sink with format negotiation and channel mapping
+- [x] Audio output sink with fixed-format PipeWire negotiation and canonical one-to-eight-channel mapping
 - [ ] Audio input source
 - [ ] Full-duplex operation
-- [ ] Bounded buffering between CommRaT scheduling and the device callback
-- [ ] Underrun/overrun detection, counters, and recovery policy
-- [ ] Device hot-plug and sample-rate/block-size change handling
+- [x] Bounded buffering between CommRaT scheduling and the device callback
+- [~] Underrun/overrun detection and counters; callback, missing-frame, and stream-failure counters are implemented while published telemetry remains
+- [~] Device hot-plug and sample-rate/block-size change handling; PipeWire-managed reconnect drops stale queued audio, while physical reconnect validation and format changes remain
 - [~] WAV file I/O for deterministic tests and offline rendering
   - [x] PCM16 WAV sink backed by `corerat::File`
   - [x] Byte-exact writer and lifecycle tests
@@ -424,13 +478,20 @@ Keep backend callbacks minimal: adapt buffers, transfer bounded data, update cou
 Both renderers consume the shared project, surface schema, snapshots, and commands. Neither may read mutable DSP state directly or block the audio path. RatGUI is the full application/graph designer; LVGL is initially the efficient on-device performance and status surface.
 
 - [ ] Confirm RatGUI APIs, threading model, rendering backend, and dependency integration
-- [ ] Confirm LVGL version, display/input drivers, threading boundary, and RaTOS integration
+- [~] Confirm LVGL version, display/input drivers, threading boundary, and RaTOS integration
+  - [x] Add an optional LVGL 9 widget renderer with headless object-level validation
+  - [x] Add a bounded SPSC handoff from message callbacks to the LVGL thread
+  - [ ] Select the first display/input driver and connect the CommRaT subscriber
 - [ ] Implement shared renderer-neutral surface loading and capability validation
 - [ ] Define bounded UI snapshot messages and configurable publication rates
 - [ ] Module browser with lifecycle and health state
 - [ ] Graph view with typed ports, connections, and validation feedback
 - [ ] Shared parameter controls with units, ranges, defaults, and automation indication
-- [ ] External-device browser, binding editor, control learn, and feedback configuration
+- [~] External-device browser, binding editor, control learn, and feedback configuration
+  - [x] Add binding, transform, pickup, and feedback configuration
+  - [x] Generate designed-deck devices and semantic endpoints from placed components
+  - [x] Add endpoint capabilities and transport-neutral simulated control learn
+  - [ ] Add external observation handoff for live ESP32 and MIDI learn
 - [ ] Oscilloscope with decimated waveform snapshots
 - [ ] Spectrum analyzer with FFT performed outside the audio callback
 - [ ] Peak/RMS meters and clipping indicators

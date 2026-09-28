@@ -1,0 +1,99 @@
+{
+  "app_name": "MusicRaTControlActionsToAudioFilePlayer",
+  "modules": [
+    {
+      "name": "ControlSource_1",
+      "module_class": "MusicRaTControlSource",
+      "outputs": [
+        { "system_id": 20, "instance_id": 1 }
+      ],
+      "inputs": [],
+      "synced_inputs": [],
+      "period_ms": 10,
+      "params": {
+        "device_id": 1,
+        "endpoint_id": 1,
+        "origin_id": 1,
+        "kind": 0,
+        "value": 0.75,
+        "gesture_flags": 2,
+        "enabled": true
+      }
+    },
+    {
+      "name": "ActionMapper_1",
+      "module_class": "MusicRaTActionMapper",
+      "outputs": [
+        { "system_id": 20, "instance_id": 2 }
+      ],
+      "inputs": [
+        { "source_system_id": 20, "source_instance_id": 1 }
+      ],
+      "params": {
+        "bindings": [
+          {
+            "binding_id": 1,
+            "source_device_id": 1,
+            "source_endpoint_id": 1,
+            "source_kind": 0,
+            "action_type": 0,
+            "quantization": 0,
+            "source_minimum": 0.0,
+            "source_maximum": 1.0,
+            "target_minimum": 0.0,
+            "target_maximum": 1.0,
+            "default_value": 1.0,
+            "ramp_frames": 0
+          },
+          {
+            "binding_id": 2,
+            "source_device_id": 1,
+            "source_endpoint_id": 1,
+            "source_kind": 0,
+            "action_type": 2,
+            "quantization": 0,
+            "source_minimum": 0.0,
+            "source_maximum": 1.0,
+            "target_minimum": -4.0,
+            "target_maximum": 4.0,
+            "default_value": 1.0,
+            "ramp_frames": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "AudioFilePlayer_1",
+      "module_class": "MusicRaTAudioFilePlayer",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 4 }
+      ],
+      "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 20, "source_instance_id": 2 }
+      ],
+      "period_ms": 10,
+      "params": {
+        "path": "/tmp/musicrat-action-player-input.wav",
+        "output_sample_rate_hz": 48000.0,
+        "initial_rate": 1.0,
+        "autoplay": false
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 4 },
+      "outputs": [],
+      "inputs": [
+        { "source_system_id": 10, "source_instance_id": 4 }
+      ],
+      "params": {
+        "path": "/tmp/musicrat-action-player-output.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}

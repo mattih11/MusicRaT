@@ -47,7 +47,31 @@ const controlProject = {
     mode: 'absolute',
     transform: { scale: 1, offset: 0 },
   }],
-  surfaces: [],
+  action_bindings: [{
+    id: 'play',
+    source: { owner_id: 'fader-bank', endpoint_id: 'fader-1' },
+    target: { module_id: 'Module_1', action_id: 'play' },
+    quantization: 'immediate',
+  }],
+  observation_bindings: [{
+    id: 'level',
+    source: { module_id: 'Module_1', observable_id: 'peak', channel: 0 },
+    target: { surface_id: 'main', widget_id: 'meter', property: 'value' },
+  }],
+  surfaces: [{
+    id: 'main',
+    display_name: 'Main',
+    target: 'lvgl',
+    endpoints: [],
+    widgets: [{
+      id: 'meter',
+      kind: 'meter',
+      display_name: 'Level',
+      layout: { x: 0, y: 0, width: 20, height: 60 },
+      route: 'feedback',
+      observation_binding_id: 'level',
+    }],
+  }],
 }
 
 describe('atomic project store', () => {
@@ -106,6 +130,13 @@ describe('atomic project store', () => {
     await expect(store.write(
       'InvalidControl.json',
       { ...project('InvalidControl', 1), musicrat_control: invalidControl },
+      null,
+    )).rejects.toMatchObject({ code: 'invalid_document' })
+    const invalidObservation = structuredClone(controlProject)
+    invalidObservation.observation_bindings[0].target.widget_id = 'missing'
+    await expect(store.write(
+      'InvalidObservation.json',
+      { ...project('InvalidObservation', 1), musicrat_control: invalidObservation },
       null,
     )).rejects.toMatchObject({ code: 'invalid_document' })
     expect(created.document.musicrat_control.bindings[0].id).toBe('gain')

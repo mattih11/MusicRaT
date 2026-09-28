@@ -9,12 +9,14 @@ namespace CommRaT {
 
 class Gain : public MusicRaT::Module2<
     commrat::Output<Messages::AudioBlock>,
+    commrat::Output<Messages::ParameterStateBlock>,
     commrat::Input<Messages::AudioBlock>,
     commrat::SyncedInput<Messages::ParameterEventBlock>,
     commrat::Params<Parameters::Gain>
 > {
     using Base = MusicRaT::Module2<
         commrat::Output<Messages::AudioBlock>,
+        commrat::Output<Messages::ParameterStateBlock>,
         commrat::Input<Messages::AudioBlock>,
         commrat::SyncedInput<Messages::ParameterEventBlock>,
         commrat::Params<Parameters::Gain>>;
@@ -30,6 +32,13 @@ public:
                 .direction = PORT_DIRECTION_OUTPUT,
                 .port_index = 0,
                 .domain = PORT_DOMAIN_AUDIO,
+            },
+            {
+                .id = "parameter_state",
+                .display_name = "Parameter State",
+                .direction = PORT_DIRECTION_OUTPUT,
+                .port_index = 1,
+                .domain = PORT_DOMAIN_PARAMETER,
             },
             {
                 .id = "audio_in",
@@ -60,6 +69,7 @@ public:
                 .step = 0.01,
                 .display_scale = PARAMETER_SCALE_DECIBEL,
                 .automatable = true,
+                .choices = {},
             },
             {
                 .id = Parameters::GAIN_SMOOTHING_PARAMETER_ID,
@@ -71,6 +81,7 @@ public:
                 .minimum = 0.0,
                 .maximum = static_cast<double>(Messages::AudioBlock::MAX_FRAMES),
                 .step = 1.0,
+                .choices = {},
             },
             {
                 .id = Parameters::GAIN_MUTED_PARAMETER_ID,
@@ -78,6 +89,8 @@ public:
                 .display_name = "Mute",
                 .group = "Level",
                 .kind = PARAMETER_KIND_BOOLEAN,
+                .unit = "",
+                .choices = {},
             },
             {
                 .id = Parameters::GAIN_INVERT_POLARITY_PARAMETER_ID,
@@ -85,6 +98,8 @@ public:
                 .display_name = "Invert Polarity",
                 .group = "Level",
                 .kind = PARAMETER_KIND_BOOLEAN,
+                .unit = "",
+                .choices = {},
             },
         };
         return metadata;
@@ -99,12 +114,18 @@ protected:
     void process(
         const Messages::AudioBlock& input,
         const commrat::Synced<Messages::ParameterEventBlock>& parameter_events,
-        Messages::AudioBlock& output) override {
+        Messages::AudioBlock& output,
+        Messages::ParameterStateBlock& parameter_state) override {
         const Messages::ParameterEventBlock* events = nullptr;
         if (parameter_events.is_fresh()) {
             events = &parameter_events.value();
         }
         processor_.process(input, events, output);
+        parameter_state.states.clear();
+        parameter_state.states.push_back(processor_.gain_state());
+        parameter_state.timestamp_ns = input.timestamp_ns;
+        parameter_state.sequence_number = state_sequence_number_++;
+        parameter_state.flags = Messages::PARAMETER_STATE_BLOCK_SNAPSHOT;
     }
 
     void on_params_changed() override {
@@ -113,6 +134,7 @@ protected:
 
 private:
     musicrat::dsp::GainProcessor processor_{};
+    uint64_t state_sequence_number_{0};
 };
 
 } // namespace CommRaT

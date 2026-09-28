@@ -69,6 +69,22 @@ commrat::ModuleDescriptor parameterized_module(
     };
 }
 
+musicrat::launcher::PortModuleMetadata valid_ports();
+
+commrat::ModuleDescriptor semantic_module(
+    musicrat::launcher::ActionModuleMetadata actions,
+    musicrat::launcher::ObservableModuleMetadata observables) {
+    struct Metadata {
+        musicrat::launcher::PortModuleMetadata musicrat_ports;
+        musicrat::launcher::ActionModuleMetadata musicrat_actions;
+        musicrat::launcher::ObservableModuleMetadata musicrat_observables;
+    };
+    auto descriptor = note_consumer(valid_ports());
+    descriptor.descriptor_metadata = generic(Metadata{
+        valid_ports(), std::move(actions), std::move(observables)});
+    return descriptor;
+}
+
 bool rejects(const std::function<void()>& function) {
     try {
         function();
@@ -192,5 +208,33 @@ int main() {
     malformed_range.parameters[0].maximum = 1.0;
     assert(rejects([&] {
         validate_module_metadata(parameterized_module(malformed_range));
+    }));
+
+    ActionModuleMetadata actions{.actions = {{
+        .id = "trigger_note",
+        .display_name = "Trigger Note",
+        .group = "Performance",
+        .input_port_id = "note_events",
+        .kind = SEMANTIC_KIND_TRIGGER,
+    }}};
+    ObservableModuleMetadata observables{.observables = {{
+        .id = "level",
+        .display_name = "Level",
+        .group = "Meter",
+        .output_port_id = "audio_out",
+        .selector = "level",
+        .kind = SEMANTIC_KIND_CONTINUOUS,
+    }}};
+    validate_module_metadata(semantic_module(actions, observables));
+
+    actions.actions[0].input_port_id = "missing";
+    assert(rejects([&] {
+        validate_module_metadata(semantic_module(actions, observables));
+    }));
+
+    actions.actions[0].input_port_id = "note_events";
+    observables.observables[0].output_port_id = "note_events";
+    assert(rejects([&] {
+        validate_module_metadata(semantic_module(actions, observables));
     }));
 }

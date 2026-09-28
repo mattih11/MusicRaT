@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "evl-base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_MUSICRAT": "ON",
+        "BUILD_MUSICXML": "OFF",
+        "BUILD_TESTING": "OFF",
+        "MUSICRAT_AUDIO_BACKEND": "NONE",
+        "MUSICRAT_FLAC_SUPPORT": "OFF",
+        "MUSICRAT_MP3_SUPPORT": "OFF",
+        "MUSICRAT_AAC_SUPPORT": "OFF",
+        "MUSICRAT_OPUS_SUPPORT": "OFF",
+        "MUSICRAT_RUBBERBAND_SUPPORT": "OFF"
+      }
+    },
+    {
+      "name": "evl",
+      "displayName": "EVL platform (RaTOS guest)",
+      "description": "Native headless build inside a RaTOS guest with the EVL dependency stack installed.",
+      "inherits": "evl-base"
+    },
+    {
+      "name": "evl-cross",
+      "displayName": "EVL build against RaTOS SDK",
+      "description": "Headless cross-build using the RaTOS ISAR SDK selected by EVL_SDK_DIR.",
+      "inherits": "evl-base",
+      "toolchainFile": "${sourceDir}/cmake/isar-sdk-toolchain.cmake"
+    }
+  ],
+  "buildPresets": [
+    { "name": "evl", "configurePreset": "evl" },
+    { "name": "evl-cross", "configurePreset": "evl-cross" }
+  ],
+  "testPresets": [
+    {
+      "name": "evl",
+      "configurePreset": "evl",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

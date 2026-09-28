@@ -1,0 +1,36 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(CoreRaT REQUIRED)
+find_dependency(CommRaT REQUIRED)
+find_dependency(SeRTial REQUIRED)
+
+if(@MUSICRAT_HAS_FLAC@ OR @MUSICRAT_HAS_MP3@ OR @MUSICRAT_HAS_AAC@
+        OR @MUSICRAT_HAS_OPUS@ OR "@MUSICRAT_AUDIO_BACKEND@" STREQUAL "PIPEWIRE")
+    find_dependency(PkgConfig REQUIRED)
+endif()
+if(@MUSICRAT_HAS_FLAC@)
+    pkg_check_modules(LIBFLAC REQUIRED IMPORTED_TARGET flac)
+endif()
+if(@MUSICRAT_HAS_MP3@)
+    pkg_check_modules(LIBMPG123 REQUIRED IMPORTED_TARGET libmpg123)
+endif()
+if(@MUSICRAT_HAS_AAC@)
+    pkg_check_modules(FFMPEG_AAC REQUIRED IMPORTED_TARGET
+        libavformat libavcodec libavutil libswresample)
+endif()
+if(@MUSICRAT_HAS_OPUS@)
+    pkg_check_modules(FFMPEG_OPUS REQUIRED IMPORTED_TARGET
+        libavformat libavcodec libavutil libswresample)
+endif()
+if(@MUSICRAT_HAS_RUBBERBAND@)
+    find_dependency(PkgConfig REQUIRED)
+    pkg_check_modules(RUBBERBAND REQUIRED IMPORTED_TARGET rubberband>=3.0)
+endif()
+if("@MUSICRAT_AUDIO_BACKEND@" STREQUAL "PIPEWIRE")
+    pkg_check_modules(PIPEWIRE REQUIRED IMPORTED_TARGET libpipewire-0.3)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/MusicRaTTargets.cmake")
+check_required_components(MusicRaT)

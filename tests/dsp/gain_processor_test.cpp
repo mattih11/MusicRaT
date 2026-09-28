@@ -37,6 +37,8 @@ int main() {
         .parameter_id = CommRaT::Parameters::GAIN_PARAMETER_ID,
         .sample_offset = 0,
         .value = 0.0,
+        .origin_id = 13,
+        .binding_id = 7,
     });
 
     CommRaT::Messages::AudioBlock output{};
@@ -52,6 +54,12 @@ int main() {
         assert(std::abs(output.channels[0][frame] - expected) < 1.0e-6);
         assert(output.channels[0][frame] == output.channels[1][frame]);
     }
+    assert(processor.gain_state().parameter_id
+        == CommRaT::Parameters::GAIN_PARAMETER_ID);
+    assert(processor.gain_state().source_endpoint_id == 1);
+    assert(processor.gain_state().origin_id == 13);
+    assert(processor.gain_state().binding_id == 7);
+    assert(processor.gain_state().value == 0.0);
 
     input.channel_count = 1;
     processor.process(input, nullptr, output);
@@ -69,6 +77,13 @@ int main() {
         .muted = true,
         .invert_polarity = false,
     });
+    assert(processor.gain_state().source_endpoint_id
+        == CommRaT::Messages::INVALID_CONTROL_ENDPOINT_ID);
+    assert(processor.gain_state().origin_id
+        == CommRaT::Messages::INVALID_CONTROL_ORIGIN_ID);
+    assert(processor.gain_state().binding_id
+        == CommRaT::Messages::INVALID_CONTROL_BINDING_ID);
+    assert(processor.gain_state().value == 1.0);
     processor.process(input, nullptr, output);
     assert(output.channels[0][0] == 0.0);
 

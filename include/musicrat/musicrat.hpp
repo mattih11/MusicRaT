@@ -1,10 +1,13 @@
 #pragma once
 
 #include <musicrat/protocol/audio_block.hpp>
+#include <musicrat/protocol/channel_mapper.hpp>
+#include <musicrat/protocol/control_feedback.hpp>
 #include <musicrat/protocol/control_events.hpp>
 #include <musicrat/protocol/control_mapping.hpp>
 #include <musicrat/protocol/deck_control.hpp>
 #include <musicrat/protocol/file_player.hpp>
+#include <musicrat/protocol/lvgl_widget_sink.hpp>
 #include <musicrat/protocol/note_events.hpp>
 #include <musicrat/protocol/parameter_events.hpp>
 #include <musicrat/protocol/parameter_state.hpp>
@@ -12,6 +15,7 @@
 #include <musicrat/protocol/playback_status.hpp>
 #include <musicrat/protocol/telemetry.hpp>
 #include <musicrat/protocol/transport.hpp>
+#include <musicrat/protocol/ui_observation.hpp>
 #include <musicrat/protocol/wav_sink.hpp>
 
 #include <commrat/commrat.hpp>
@@ -38,6 +42,10 @@ using ControlEventOutput = commrat::DataWithCommands<
     CommRaT::Messages::ControlEventBlock>;
 using ParameterStateOutput = commrat::DataWithCommands<
     CommRaT::Messages::ParameterStateBlock>;
+using ControlFeedbackOutput = commrat::DataWithCommands<
+    CommRaT::Messages::ControlFeedbackBlock>;
+using WidgetUpdateOutput = commrat::DataWithCommands<
+    CommRaT::Messages::WidgetUpdateBlock>;
 
 using MusicRaT = commrat::CommRaT<
     AudioBlockOutput,
@@ -48,4 +56,6 @@ using MusicRaT = commrat::CommRaT<
     PlaybackStatusOutput,
     TransportOutput,
     ControlEventOutput,
-    ParameterStateOutput>;
+    ParameterStateOutput,
+    ControlFeedbackOutput,
+    WidgetUpdateOutput>;

@@ -102,6 +102,26 @@ public:
                 },
             },
         };
+        metadata.musicrat_observables.observables = {
+            {.id = "beat_position", .display_name = "Beat Position", .group = "Position",
+             .output_port_id = "transport", .selector = "beat_position",
+             .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "beats",
+             .maximum = 1000000000.0},
+            {.id = "tempo", .display_name = "Tempo", .group = "Position",
+             .output_port_id = "transport", .selector = "tempo_bpm",
+             .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "BPM",
+             .minimum = 20.0, .maximum = 400.0},
+            {.id = "transport_frame", .display_name = "Transport Frame", .group = "Position",
+             .output_port_id = "transport", .selector = "transport_frame",
+             .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "frames",
+             .maximum = 18446744073709551615.0},
+            {.id = "state", .display_name = "State", .group = "Transport",
+             .output_port_id = "transport", .selector = "state",
+             .kind = SEMANTIC_KIND_CHOICE, .maximum = 3.0},
+            {.id = "looping", .display_name = "Looping", .group = "Transport",
+             .output_port_id = "transport", .selector = "flags.looping",
+             .kind = SEMANTIC_KIND_BOOLEAN},
+        };
         return metadata;
     }
 

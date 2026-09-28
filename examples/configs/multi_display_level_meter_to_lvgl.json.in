@@ -1,0 +1,117 @@
+{
+  "app_name": "MusicRaTMultiDisplayLevelMeterToLvgl",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": { "frequency_hz": 220.0, "amplitude": 0.2, "sample_rate_hz": 48000.0, "phase_offset": 0.0, "enabled": true }
+    },
+    {
+      "name": "LevelMeter_1",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [{ "system_id": 10, "instance_id": 2 }, { "system_id": 30, "instance_id": 1 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "LevelMeterUiAdapter_1",
+      "module_class": "MusicRaTLevelMeterUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 1 }],
+      "inputs": [{ "source_system_id": 30, "source_instance_id": 1 }],
+      "params": { "bindings": [{ "binding_id": 1, "surface_id": "main", "widget_id": "peak-meter-1", "property": 0, "selector": 0, "channel": 0 }] }
+    },
+    {
+      "name": "NullSink_1",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }]
+    },
+    {
+      "name": "SineOscillator_2",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 3 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": { "frequency_hz": 330.0, "amplitude": 0.3, "sample_rate_hz": 48000.0, "phase_offset": 0.0, "enabled": true }
+    },
+    {
+      "name": "LevelMeter_2",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [{ "system_id": 10, "instance_id": 4 }, { "system_id": 30, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "LevelMeterUiAdapter_2",
+      "module_class": "MusicRaTLevelMeterUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 30, "source_instance_id": 2 }],
+      "params": { "bindings": [{ "binding_id": 2, "surface_id": "main", "widget_id": "peak-meter-2", "property": 0, "selector": 0, "channel": 0 }] }
+    },
+    {
+      "name": "NullSink_2",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 2 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }]
+    },
+    {
+      "name": "WidgetUpdateMerger_1",
+      "module_class": "MusicRaTWidgetUpdateMerger",
+      "outputs": [{ "system_id": 50, "instance_id": 4 }],
+      "inputs": [{ "source_system_id": 50, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 2 }]
+    },
+    {
+      "name": "LvglWidgetSink_1",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [{ "system_id": 60, "instance_id": 1 }],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 4 }],
+      "period_ms": 10,
+      "params": { "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/multi_display_level_meter.lvgl.json", "display_instance_id": "display-1", "width": 320, "height": 240, "backend": 0, "device_path": "", "connector_id": -1, "window_title": "MusicRaT Display 1", "device_id": 1, "control_bindings": [] }
+    },
+    {
+      "name": "SineOscillator_3",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 5 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": { "frequency_hz": 440.0, "amplitude": 0.4, "sample_rate_hz": 48000.0, "phase_offset": 0.0, "enabled": true }
+    },
+    {
+      "name": "LevelMeter_3",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [{ "system_id": 10, "instance_id": 6 }, { "system_id": 30, "instance_id": 3 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 5 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "LevelMeterUiAdapter_3",
+      "module_class": "MusicRaTLevelMeterUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 3 }],
+      "inputs": [{ "source_system_id": 30, "source_instance_id": 3 }],
+      "params": { "bindings": [{ "binding_id": 3, "surface_id": "secondary", "widget_id": "peak-meter-3", "property": 0, "selector": 0, "channel": 0 }] }
+    },
+    {
+      "name": "LvglWidgetSink_2",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [{ "system_id": 60, "instance_id": 2 }],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 3 }],
+      "period_ms": 10,
+      "params": { "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/multi_display_level_meter.lvgl.json", "display_instance_id": "display-2", "width": 320, "height": 240, "backend": 0, "device_path": "", "connector_id": -1, "window_title": "MusicRaT Display 2", "device_id": 2, "control_bindings": [] }
+    },
+    {
+      "name": "NullSink_3",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 3 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 6 }]
+    }
+  ]
+}

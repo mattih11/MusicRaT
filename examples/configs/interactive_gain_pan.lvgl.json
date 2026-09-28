@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:interactive-gain-pan",
+  "displays": [
+    {
+      "instance_id": "display-1",
+      "surface_id": "display-channel-strip",
+      "widgets": [
+        {
+          "id": "gain-label",
+          "kind": "text",
+          "display_name": "Gain",
+          "layout": { "x": 8, "y": 10, "width": 38, "height": 10 },
+          "route": "feedback"
+        },
+        {
+          "id": "gain",
+          "kind": "fader",
+          "display_name": "Gain",
+          "layout": { "x": 16, "y": 24, "width": 22, "height": 64 },
+          "route": "control"
+        },
+        {
+          "id": "pan-label",
+          "kind": "text",
+          "display_name": "Pan",
+          "layout": { "x": 58, "y": 10, "width": 34, "height": 10 },
+          "route": "feedback"
+        },
+        {
+          "id": "pan",
+          "kind": "knob",
+          "display_name": "Pan",
+          "layout": { "x": 58, "y": 30, "width": 30, "height": 40 },
+          "route": "control"
+        }
+      ]
+    }
+  ]
+}

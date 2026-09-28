@@ -87,8 +87,11 @@ flowchart TD
 - `tools/application-designer/` consumes generated descriptors and native
     CommRaT application JSON. Its graph compiler remains independent of React;
     strict export compiles control bindings into generated mapper modules while
-    draft persistence retains the editable stable-ID schema.
-    it must not define another persistent graph format or runtime DSP contract.
+    draft persistence retains the editable stable-ID schema. Pure deck compilers
+    generate ESP32, host-adapter, LVGL, and future manufacturing artifacts from
+    that same project document. Generated artifacts are outputs, not additional
+    editable project formats. The Designer must not define another application
+    graph or runtime DSP contract.
 
 Cycles between these layers are not allowed.
 
@@ -132,6 +135,9 @@ include/musicrat/modules/gain.hpp
 include/musicrat/modules/mixer.hpp
 include/musicrat/modules/sine_oscillator.hpp
 include/musicrat/modules/audio_file_player.hpp
+include/musicrat/modules/control_mapper.hpp
+include/musicrat/modules/control_feedback_router.hpp
+include/musicrat/modules/control_source.hpp
 include/musicrat/modules/null_sink.hpp
 ```
 
@@ -142,6 +148,9 @@ src/modules/gain_main.cpp
 src/modules/mixer_main.cpp
 src/modules/sine_oscillator_main.cpp
 src/modules/audio_file_player_main.cpp
+src/modules/control_mapper_main.cpp
+src/modules/control_feedback_router_main.cpp
+src/modules/control_source_main.cpp
 src/modules/null_sink_main.cpp
 ```
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:tone-to-device",
+  "displays": [
+    {
+      "instance_id": "display-1",
+      "surface_id": "display-tone-control",
+      "widgets": [
+        {
+          "id": "gain-label",
+          "kind": "text",
+          "display_name": "Output Gain",
+          "layout": { "x": 10, "y": 18, "width": 80, "height": 16 },
+          "route": "feedback"
+        },
+        {
+          "id": "gain",
+          "kind": "slider",
+          "display_name": "Output Gain",
+          "layout": { "x": 10, "y": 45, "width": 80, "height": 16 },
+          "route": "control"
+        }
+      ]
+    }
+  ]
+}

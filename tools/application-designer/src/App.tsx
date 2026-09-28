@@ -14,11 +14,18 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Download, FileJson, FolderOpen, Plus, Save, Search, Upload, Waves } from 'lucide-react'
+import { ArrowLeft, Boxes, Cpu, Download, FileJson, FolderOpen, LayoutDashboard, Plus, Save, Search, SlidersHorizontal, Upload, Waves } from 'lucide-react'
 import './App.css'
+import { BindingCanvas } from './BindingCanvas'
+import { BindingEditor } from './BindingEditor'
 import { compileLaunchApplication } from './control-compiler'
 import { demoApplication, demoDescriptors } from './demo'
+import { ControlLearn } from './ControlLearn'
+import { compileDeckArtifacts } from './deck-compiler'
+import { DeckEditor } from './DeckEditor'
 import { ModuleNodeView, type ModuleNode } from './ModuleNode'
+import { isAdvancedModulePort } from './module-node-model'
+import { UiDesigner } from './UiDesigner'
 import {
   compileApplication,
   importApplication,
@@ -113,12 +120,26 @@ function App() {
   const [selectedProjectName, setSelectedProjectName] = useState('')
   const [hostedProject, setHostedProject] = useState<{ name: string; revision: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [canvasView, setCanvasView] = useState<'modules' | 'bindings' | 'hardware' | 'ui'>('modules')
+  const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null)
+  const [showAdvancedPorts, setShowAdvancedPorts] = useState(false)
   const descriptorInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
 
   const workspace = currentWorkspace(appName, nodes, edges, sourceDocument)
   const issues = validateWorkspace(workspace)
   const selected = nodes.find((node) => node.id === selectedId)
+  const moduleCanvasNodes = nodes.map((node) => ({
+    ...node,
+    data: {
+      ...node.data,
+      showAdvancedPorts: showAdvancedPorts || portsOf(node.data.descriptor).some((port) =>
+        isAdvancedModulePort(node.data.descriptor, port)
+        && edges.some((edge) =>
+          (edge.source === node.id && edge.sourceHandle === port.id)
+          || (edge.target === node.id && edge.targetHandle === port.id))),
+    },
+  }))
 
   useEffect(() => {
     const controller = new AbortController()
@@ -194,6 +215,8 @@ function App() {
         source: { name: id, module_class: descriptor.module_class, params: structuredClone(descriptor.params_defaults ?? {}) },
       },
     }])
+    setCanvasView('modules')
+    setSelectedId(id)
   }
 
   const loadDescriptors = async (files: FileList | null) => {
@@ -277,6 +300,17 @@ function App() {
     }
   }
 
+  const exportLvgl = () => {
+    try {
+      const artifacts = compileDeckArtifacts(workspace)
+      if (!artifacts) throw new Error('Add a hardware deck with an LVGL display before export.')
+      downloadJson(`${appName || 'musicrat-application'}.lvgl.json`, artifacts.lvgl)
+      setMessage('LVGL surface JSON exported.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'LVGL surface is invalid.')
+    }
+  }
+
   const updateParameter = (name: string, value: unknown) => {
     setNodes((items) => items.map((node) => node.id === selectedId ? {
       ...node,
@@ -287,8 +321,28 @@ function App() {
     } : node))
   }
 
+  const updateControlProject = (
+    control: NonNullable<ApplicationDocument['musicrat_control']>,
+  ) => setSourceDocument((document) => ({ ...document, musicrat_control: control }))
+
+  const updateBindingPositions = (bindingPositions: Record<string, { x: number; y: number }>) => {
+    setSourceDocument((document) => ({
+      ...document,
+      musicrat_designer: {
+        ...document.musicrat_designer,
+        schema_version: 1,
+        binding_positions: bindingPositions,
+      },
+    }))
+  }
+
+  const selectBinding = (bindingId: string | null) => {
+    setSelectedId(null)
+    setSelectedBindingId(bindingId)
+  }
+
   return (
-    <main className="designer-shell">
+    <main className={`designer-shell${canvasView === 'hardware' || canvasView === 'ui' ? ' hardware-view' : ''}`}>
       <header className="topbar">
         <div className="brand"><Waves size={22} /><span>MusicRaT</span><strong>Application Designer</strong></div>
         <label className="app-name"><span>Application</span><input value={appName} onChange={(event) => setAppName(event.target.value)} /></label>
@@ -304,6 +358,7 @@ function App() {
           <button className="icon-button compact-button" title="Import application JSON" aria-label="Import application JSON" onClick={() => projectInput.current?.click()}><FolderOpen size={17} /></button>
           <button className="primary-button" title="Save project" aria-label="Save project" disabled={saving} onClick={() => void saveProject()}><Save size={17} /><span>{saving ? 'Saving' : 'Save'}</span></button>
           <button className="icon-button compact-button" title="Download application JSON" aria-label="Download application JSON" onClick={exportProject}><Download size={17} /></button>
+          <button className="icon-button compact-button" title="Download LVGL surface JSON" aria-label="Download LVGL surface JSON" onClick={exportLvgl}><Cpu size={17} /></button>
         </div>
       </header>
 
@@ -322,28 +377,73 @@ function App() {
       </aside>
 
       <section className="canvas" aria-label="Application graph">
-        <ReactFlow<ModuleNode>
-          key={catalogSource}
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_, node) => setSelectedId(node.id)}
-          onPaneClick={() => setSelectedId(null)}
-          fitView
-          minZoom={0.35}
-          maxZoom={1.8}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#cad0d0" />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable nodeColor="#254c46" maskColor="rgba(235, 238, 234, 0.78)" />
-        </ReactFlow>
+        <div className="canvas-view-switcher" role="tablist" aria-label="Designer canvas">
+          <button type="button" role="tab" aria-selected={canvasView === 'modules'}
+            onClick={() => { setCanvasView('modules'); setSelectedBindingId(null) }}>
+            <Boxes size={14} /> Modules
+          </button>
+          <button type="button" role="tab" aria-selected={canvasView === 'bindings'}
+            onClick={() => { setCanvasView('bindings'); selectBinding(null) }}>
+            <SlidersHorizontal size={14} /> Bindings
+          </button>
+          <button type="button" role="tab" aria-selected={canvasView === 'hardware'}
+            onClick={() => { setCanvasView('hardware'); setSelectedId(null) }}>
+            <Cpu size={14} /> Hardware
+          </button>
+          <button type="button" role="tab" aria-selected={canvasView === 'ui'}
+            onClick={() => { setCanvasView('ui'); setSelectedId(null) }}>
+            <LayoutDashboard size={14} /> UI
+          </button>
+        </div>
+        {canvasView === 'modules' && <button className="advanced-ports-toggle" type="button"
+          aria-pressed={showAdvancedPorts} title="Show optional automation and state ports"
+          onClick={() => setShowAdvancedPorts((visible) => !visible)}>
+          <SlidersHorizontal size={14} /> <span>Advanced ports</span>
+        </button>}
+        {canvasView === 'hardware'
+          ? <DeckEditor control={sourceDocument.musicrat_control}
+              modules={workspace.modules} onChange={updateControlProject} />
+          : canvasView === 'ui'
+          ? <UiDesigner control={sourceDocument.musicrat_control}
+            modules={workspace.modules} onChange={updateControlProject} />
+          : canvasView === 'modules'
+          ? <ReactFlow<ModuleNode>
+              key={catalogSource}
+              nodes={moduleCanvasNodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={({ nodes: selectedNodes }) =>
+                setSelectedId(selectedNodes[selectedNodes.length - 1]?.id ?? null)}
+              fitView
+              minZoom={0.35}
+              maxZoom={1.8}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#cad0d0" />
+              <Controls showInteractive={false} />
+              <MiniMap pannable zoomable nodeColor="#254c46" maskColor="rgba(235, 238, 234, 0.78)" />
+            </ReactFlow>
+          : <BindingCanvas
+              control={sourceDocument.musicrat_control}
+              modules={workspace.modules}
+              positions={sourceDocument.musicrat_designer?.binding_positions}
+              onControlChange={updateControlProject}
+              onPositionsChange={updateBindingPositions}
+              onSelectBinding={selectBinding}
+            />}
       </section>
 
       <aside className="inspector-panel">
-        <div className="panel-heading"><div><span className="eyebrow">Inspector</span><h2>{selected?.id ?? 'Application'}</h2></div><FileJson size={19} /></div>
+        <div className="panel-heading"><div><span className="eyebrow">Inspector</span><h2>{selected?.id ?? 'Application'}</h2></div>
+          {selected
+            ? <button className="mini-icon-button" type="button" title="Back to Application"
+                aria-label="Back to Application" onClick={() => setSelectedId(null)}>
+                <ArrowLeft size={17} />
+              </button>
+            : <FileJson size={19} />}
+        </div>
         {selected ? (
           <div className="inspector-content">
             <dl><dt>Class</dt><dd>{selected.data.descriptor.module_class}</dd><dt>Execution</dt><dd>{selected.data.descriptor.execution_mode ?? 'unspecified'}</dd></dl>
@@ -363,7 +463,22 @@ function App() {
             })}
           </div>
         ) : (
-          <div className="inspector-content overview"><strong>{nodes.length} modules · {edges.length} routes</strong><p>Select a module to edit its startup parameters.</p></div>
+          <div className="inspector-content overview">
+            <strong>{nodes.length} modules · {edges.length} routes</strong>
+            <ControlLearn
+              control={sourceDocument.musicrat_control}
+              modules={workspace.modules}
+              onChange={updateControlProject}
+              onSelectBinding={setSelectedBindingId}
+            />
+            <BindingEditor
+              control={sourceDocument.musicrat_control}
+              modules={workspace.modules}
+              onChange={updateControlProject}
+              selectedBindingId={selectedBindingId}
+              onSelectBinding={setSelectedBindingId}
+            />
+          </div>
         )}
       </aside>
 

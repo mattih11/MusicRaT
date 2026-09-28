@@ -4,6 +4,7 @@
 #include <musicrat/protocol/audio_block.hpp>
 #include <musicrat/protocol/gain.hpp>
 #include <musicrat/protocol/parameter_events.hpp>
+#include <musicrat/protocol/parameter_state.hpp>
 #include <musicrat/utility/audio_block.hpp>
 
 #include <algorithm>
@@ -26,11 +27,23 @@ public:
         const CommRaT::Parameters::Gain& parameters) noexcept {
         parameters_ = normalize(parameters);
         gain_.set_immediate(effective_gain(parameters_.gain));
+        gain_state_ = {
+            .parameter_id = CommRaT::Parameters::GAIN_PARAMETER_ID,
+            .value = parameters_.gain,
+        };
     }
 
     void set_parameters(const CommRaT::Parameters::Gain& parameters) noexcept {
         parameters_ = normalize(parameters);
         gain_.ramp_to(effective_gain(parameters_.gain), parameters_.smoothing_samples);
+        gain_state_ = {
+            .parameter_id = CommRaT::Parameters::GAIN_PARAMETER_ID,
+            .value = parameters_.gain,
+        };
+    }
+
+    [[nodiscard]] const CommRaT::Messages::ParameterState& gain_state() const noexcept {
+        return gain_state_;
     }
 
     void process(
@@ -101,6 +114,14 @@ private:
         gain_.ramp_to(
             effective_gain(static_cast<Sample>(event.value)),
             parameters_.smoothing_samples);
+        parameters_.gain = static_cast<Sample>(event.value);
+        gain_state_ = {
+            .parameter_id = event.parameter_id,
+            .source_endpoint_id = event.source_endpoint_id,
+            .origin_id = event.origin_id,
+            .binding_id = event.binding_id,
+            .value = event.value,
+        };
     }
 
     [[nodiscard]] Sample effective_gain(Sample gain) const noexcept {
@@ -112,6 +133,7 @@ private:
 
     CommRaT::Parameters::Gain parameters_{};
     musicrat::dsp::Gain gain_{};
+    CommRaT::Messages::ParameterState gain_state_{};
 };
 
 } // namespace musicrat::dsp

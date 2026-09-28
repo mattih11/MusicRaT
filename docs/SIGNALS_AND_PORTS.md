@@ -67,6 +67,7 @@ Port domains remain separate even when payloads contain similar primitive values
 | Audio | `AudioBlock` | Every audio quantum | PCM audio and stream timing |
 | Process clock | `ProcessContext` | Every audio quantum | Drives generators that have no audio input |
 | Raw control | `ControlEventBlock` | Event-driven or batched | Device-independent knobs, encoders, switches, gates, and triggers |
+| Control feedback | `ControlFeedbackBlock` | On authoritative state change | Endpoint-directed values with origin and binding provenance |
 | Parameter control | `ParameterEventBlock` | Block-aligned | Values mapped to parameters of one target module |
 | Parameter state | `ParameterStateBlock` | On change or bounded snapshot | Authoritative parameter values and feedback provenance |
 | Notes | `NoteEventBlock` | Block-aligned | Notes and per-note expression |
@@ -76,7 +77,7 @@ Port domains remain separate even when payloads contain similar primitive values
 
 Compressed media packets and device-native buffers are backend details, not graph port domains. File players decode ahead and publish `AudioBlock`; file/device sinks consume `AudioBlock`. See [Media Playback, Recording, and Device I/O](MEDIA_PLAYBACK.md).
 
-`AudioBlock`, `ControlEventBlock`, the numeric `ParameterEventBlock`,
+`AudioBlock`, `ControlEventBlock`, `ControlFeedbackBlock`, the numeric `ParameterEventBlock`,
 `ParameterStateBlock`, note, transport, playback-status, and level-meter
 payloads are implemented. Future payload families must use bounded serializable
 storage.
@@ -205,6 +206,17 @@ sequence number, and overflow flag. Events use `double` values so mapping into
 numeric parameter values does not introduce a protocol precision change. No
 device-specific packet representation crosses this boundary.
 
+ESP32-host and MIDI transports are separate adapter implementations of this
+same contract. For a designed deck, the project stores catalog component
+instances while the embedded-PC driver profile generates physical
+pin/peripheral assignments and the host link. Runtime messages still contain
+only bounded numeric semantic IDs; neither pin assignments nor transport packet
+details cross into DSP modules or bindings. Discovery and control learn expose transient semantic
+observations keyed by project device and endpoint IDs; those observations are
+not real-time messages and are not persisted. The Application Designer may
+consume observations supplied by an external launcher/controller, but it does
+not own adapter process lifecycle or access hardware transports directly.
+
 ### 6.5 `ParameterEventBlock` (Implemented Numeric Contract)
 
 A mapping module transforms raw controls into target-oriented events. Each event contains:
@@ -241,6 +253,28 @@ accepting state from other origins. Binding IDs route the state to the selected
 feedback destination. A snapshot flag identifies a requested current-state
 projection; an unflagged block is an incremental update.
 
+`MusicRaTGain` publishes one authoritative gain state snapshot for every
+processed audio block. The state carries the accepted event's endpoint, origin,
+and binding IDs, or unspecified provenance after a direct parameter update.
+Its timestamp follows the source audio block and its state sequence is monotonic.
+
+### 6.6.1 `ControlFeedbackBlock` and Router (Implemented)
+
+`ControlFeedbackBlock` carries bounded endpoint-directed values with destination
+device and endpoint IDs plus origin and binding provenance. The allocation-free
+`musicrat::dsp::ControlFeedbackRouter` compiles binding/parameter destinations,
+fans direct snapshots out to matching bindings, and routes binding-specific
+state only to that binding. It drops a destination when the state's origin
+matches the endpoint's configured suppression origin, preventing reflexive
+feedback.
+
+`MusicRaTControlFeedbackRouter` is the launchable wrapper. Strict export groups
+feedback bindings by target, routes authoritative state into the generated
+router, and connects its output to each declared device adapter. Adapters filter
+by destination IDs. `MusicRaTControlSource` retains matching external feedback
+as presentation state without emitting a new gesture and rejects its own origin
+defensively.
+
 ### 6.7 Headless Mapping Kernel (Implemented)
 
 `musicrat::dsp::ControlMapper` is independent of CommRaT module lifecycle,
@@ -261,6 +295,9 @@ suppresses insignificant output changes.
 `ParameterStateBlock` updates resynchronize binding state. Match pickup is
 re-armed by synchronization and emits only after the physical control reaches
 or crosses the authoritative value; immediate pickup applies the next event.
+Strict launch export connects a target's single declared parameter-state output
+to the generated mapper's synchronized state input. Targets without that output
+remain valid but cannot resynchronize their mapper from authoritative state.
 
 `MusicRaTControlMapper` is the launchable adapter around this kernel. It has one
 `Input<ControlEventBlock>`, one optional synchronized
@@ -268,7 +305,54 @@ or crosses the authoritative value; immediate pickup applies the next event.
 compiled bindings in `Params<ControlMapper>`. Invalid startup or updated
 configuration produces an empty block with `PARAMETER_EVENT_BLOCK_INVALID_CONFIG`.
 
-### 6.8 Virtual Parameter Ports
+`MusicRaTControlSource` is a deterministic virtual adapter used for launch
+graphs and tests that do not require hardware. It emits one configured semantic
+event per period. Strict launch export injects its compiled device, endpoint,
+origin, and control-kind IDs while preserving user-configured value, gesture,
+and enabled fields. `controlled_gain.json` routes this source through
+`MusicRaTControlMapper` to the gain parameter without introducing a direct
+parameter-source shortcut.
+
+### 6.8 Headless Action Mapping (Implemented)
+
+Actions are descriptor-declared semantic operations carried by an existing
+typed input port; they are not startup parameters and do not create one physical
+port per operation. `musicrat::dsp::ActionMapper` compiles bounded source/action
+records and maps semantic controls into `DeckControlEventBlock` events without
+allocation, locking, or exceptions. It preserves block timestamps, sequence
+numbers, and sample offsets, maps continuous ranges, suppresses release edges
+for trigger-like sources, and applies configured ramp frames and
+immediate/beat/bar quantization.
+
+`MusicRaTActionMapper` is the launchable adapter with one
+`Input<ControlEventBlock>`, one `Output<DeckControlEventBlock>`, and bounded
+`Params<ActionMapper>`. Strict export resolves each action's stable
+`input_port_id`, rejects an occupied or incompatible route, and inserts the
+generated mapper before the target. AudioFilePlayer play, pause, rate, cue, and
+loop operations use this path. `control_actions_to_audio_file_player.json`
+proves a trigger and ranged action through the launcher with autoplay disabled.
+
+Observations remain a separate read-only contract. Module descriptors identify
+typed output ports and selectors for playback status, transport state, and
+level-meter values. Designer strict export groups LevelMeter bindings by source
+port and materializes `MusicRaTLevelMeterUiAdapter`, which converts
+`LevelMeterBlock` snapshots into bounded, renderer-neutral `WidgetUpdateBlock`
+events carrying stable binding, surface, widget, property, and value identity.
+`level_meter_to_ui.json` proves this typed route through the launcher. The
+optional LVGL backend creates manifest-defined widgets and applies these
+updates on the LVGL thread. `MusicRaTLvglWidgetSink` owns the bounded
+CommRaT-to-LVGL handoff and selected headless, SDL, DRM/KMS, or fbdev display.
+Strict export creates one periodic LVGL module per display participating in
+controls or observations. Multiple typed adapter streams for the same display
+pass through a deterministic chain of bounded `MusicRaTWidgetUpdateMerger`
+modules before reaching its synchronized input. Slider, knob, toggle, and
+button callbacks enqueue semantic events through a bounded SPSC queue; the
+periodic module callback publishes those events to generated control mappers.
+Programmatic feedback updates do not recursively emit controls. Physical
+controls remain semantic hardware-adapter sources rather than LVGL inputs.
+RatGUI rendering remains separate work.
+
+### 6.9 Virtual Parameter Ports
 
 RatGUI may draw one input pin per parameter, but modules should not declare one CommRaT message type or mailbox per knob. Instead:
 
@@ -280,7 +364,7 @@ RatGUI may draw one input pin per parameter, but modules should not declare one 
 
 This preserves discoverability without causing message-registry or mailbox growth.
 
-### 6.9 Bindings
+### 6.10 Bindings
 
 A binding is project data and includes:
 
@@ -343,6 +427,12 @@ Telemetry uses dedicated bounded message types rather than `AudioBlock` copies w
 Telemetry publication is rate-limited and lossy by design. Dropping stale GUI frames is preferable to delaying audio processing. RatGUI subscribes to telemetry but never mutates module state through telemetry channels.
 
 `LevelMeterBlock` is the first implemented telemetry type. It contains fixed per-channel arrays for sample peak, RMS, and clipping state plus channel count, timestamp, sequence number, and flags. `MusicRaTLevelMeter` is a pass-through analyzer with output 0 as `AudioBlock` and output 1 as `LevelMeterBlock`; this descriptor order is part of its launch-config contract. The initial module publishes one snapshot per audio block. Configurable decimation and true-peak measurement remain planned.
+
+`WidgetUpdateBlock` is the renderer-neutral observation boundary. The first
+payload-specific adapter, `MusicRaTLevelMeterUiAdapter`, maps configured peak,
+RMS, and clipping selectors to bounded widget updates without allocation or
+blocking in its process callback. Future status payloads receive their own
+typed adapters rather than sharing an untyped telemetry bus.
 
 ## 10. Timing and Synchronization
 

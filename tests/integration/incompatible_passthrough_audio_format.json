@@ -18,7 +18,10 @@
     {
       "name": "Gain_1",
       "module_class": "MusicRaTGain",
-      "outputs": [{ "system_id": 10, "instance_id": 2 }],
+      "outputs": [
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 1 }
+      ],
       "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }]
     },
     {

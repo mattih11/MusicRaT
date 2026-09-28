@@ -79,6 +79,15 @@ Run on each supported RaTOS board with the selected audio backend and representa
 
 Publish the board, kernel, image revision, audio interface, sample rate, period, duration, and observed maxima with every result. Hardware thresholds belong in a versioned compatibility matrix once the first backend is selected.
 
+For console-only Linux targets such as Odroid images, prefer the LVGL DRM/KMS
+backend with software-rendered dumb buffers. It writes directly to a connected
+KMS output and does not require X11, Wayland, Mesa, or a desktop environment.
+The image must include libdrm, grant the MusicRaT service access to
+`/dev/dri/card*`, and leave the selected connector available. Use fbdev with
+`/dev/fb0` only on kernels that still expose the legacy framebuffer API.
+Display initialization and rendering stay on the non-real-time LVGL thread;
+the CommRaT callback only writes to the bounded queue.
+
 ## Real-Time Portability Rules
 
 Code reachable from `process()` or an audio backend callback must use only APIs whose EVL behavior is understood. In addition to the general no-allocation and no-blocking rules:
@@ -101,3 +110,20 @@ MusicRaT CI should grow in this order:
 5. Scheduled or release-gated physical-board stress and latency tests.
 
 EVL cross-build and QEMU failures block changes that affect runtime code. Physical tests gate supported-hardware and real-time performance claims rather than routine DSP-only development.
+
+## Release Image Pinning
+
+Build a release-candidate RaTOS image only after the dependency changes are
+committed and pushed. Before starting the image build:
+
+1. Require clean CoreRaT, CommRaT, MusicRaT, and RaTOS worktrees.
+2. Confirm each local release branch matches its upstream branch.
+3. Pin the CoreRaT, CommRaT, and MusicRaT recipes to those exact upstream commit
+  IDs; release recipes must not use `${AUTOREV}` or a temporary feature branch.
+4. Regenerate the RaTOS SDK so it contains the pinned development packages.
+5. Configure and build MusicRaT with the regenerated SDK before building the
+  `ratos-musicrat-image` KAS target.
+
+Record all four repository commit IDs with the image artifact. A successful
+build from a dirty source checkout or an unpinned recipe is development evidence,
+not a reproducible release image.

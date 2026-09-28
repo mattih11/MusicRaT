@@ -49,6 +49,8 @@ struct DescriptorMetadata {
     AudioModuleFormat musicrat_audio;
     PortModuleMetadata musicrat_ports{};
     ParameterModuleMetadata musicrat_parameters{};
+    ActionModuleMetadata musicrat_actions{};
+    ObservableModuleMetadata musicrat_observables{};
 };
 
 inline DescriptorMetadata audio_source_metadata(
@@ -129,6 +131,21 @@ inline DescriptorMetadata audio_channel_transform_metadata(
         input_port_index, output_port_index);
     metadata.musicrat_audio.inputs[0].channel_count = input_channel_count;
     metadata.musicrat_audio.outputs[0].channel_count = output_channel_count;
+    metadata.musicrat_audio.passthroughs[0].preserve_channel_count = false;
+    return metadata;
+}
+
+inline DescriptorMetadata audio_configurable_channel_transform_metadata(
+    std::string input_channel_count_param,
+    std::string output_channel_count_param,
+    std::size_t input_port_index = 0,
+    std::size_t output_port_index = 0) {
+    auto metadata = audio_passthrough_metadata(
+        input_port_index, output_port_index);
+    metadata.musicrat_audio.inputs[0].channel_count_param =
+        std::move(input_channel_count_param);
+    metadata.musicrat_audio.outputs[0].channel_count_param =
+        std::move(output_channel_count_param);
     metadata.musicrat_audio.passthroughs[0].preserve_channel_count = false;
     return metadata;
 }

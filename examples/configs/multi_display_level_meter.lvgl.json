@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:multi-display-level-meter",
+  "displays": [
+    {
+      "instance_id": "display-1",
+      "surface_id": "main",
+      "widgets": [
+        {
+          "id": "peak-meter-1",
+          "kind": "meter",
+          "display_name": "Peak 1",
+          "layout": { "x": 10, "y": 10, "width": 20, "height": 80 },
+          "route": "feedback"
+        },
+        {
+          "id": "peak-meter-2",
+          "kind": "meter",
+          "display_name": "Peak 2",
+          "layout": { "x": 50, "y": 10, "width": 20, "height": 80 },
+          "route": "feedback"
+        }
+      ]
+    },
+    {
+      "instance_id": "display-2",
+      "surface_id": "secondary",
+      "widgets": [
+        {
+          "id": "peak-meter-3",
+          "kind": "meter",
+          "display_name": "Peak 3",
+          "layout": { "x": 40, "y": 10, "width": 20, "height": 80 },
+          "route": "feedback"
+        }
+      ]
+    }
+  ]
+}

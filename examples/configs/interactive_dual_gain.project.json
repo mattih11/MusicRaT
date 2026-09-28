@@ -1,0 +1,155 @@
+{
+  "app_name": "MusicRaTInteractiveDualGain",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.2,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "Gain_1",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 3 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "gain": 1.0,
+        "smoothing_samples": 64,
+        "muted": false,
+        "invert_polarity": false
+      }
+    },
+    {
+      "name": "Gain_2",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 3 },
+        { "system_id": 20, "instance_id": 4 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "gain": 1.0,
+        "smoothing_samples": 64,
+        "muted": false,
+        "invert_polarity": false
+      }
+    },
+    {
+      "name": "LevelMeter_1",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 1 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "NullSink_1",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }]
+    }
+  ],
+  "musicrat_control": {
+    "schema_version": 1,
+    "devices": [],
+    "bindings": [
+      {
+        "id": "first-gain-binding",
+        "source": { "owner_id": "display-display-1", "endpoint_id": "first-gain" },
+        "target": { "module_id": "Gain_1", "parameter_id": 1 },
+        "mode": "absolute"
+      },
+      {
+        "id": "second-gain-binding",
+        "source": { "owner_id": "display-display-1", "endpoint_id": "second-gain" },
+        "target": { "module_id": "Gain_2", "parameter_id": 1 },
+        "mode": "absolute"
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "display-display-1",
+        "display_name": "Dual Gain",
+        "target": "lvgl",
+        "endpoints": [
+          {
+            "id": "first-gain",
+            "display_name": "Gain 1",
+            "direction": "input",
+            "domain": "unipolar",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          {
+            "id": "second-gain",
+            "display_name": "Gain 2",
+            "direction": "input",
+            "domain": "unipolar",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        ],
+        "widgets": [
+          {
+            "id": "first-gain",
+            "kind": "slider",
+            "display_name": "Gain 1",
+            "layout": { "x": 7, "y": 20, "width": 48, "height": 10 },
+            "route": "control",
+            "endpoint_id": "first-gain"
+          },
+          {
+            "id": "second-gain",
+            "kind": "knob",
+            "display_name": "Gain 2",
+            "layout": { "x": 67, "y": 18, "width": 22, "height": 30 },
+            "route": "control",
+            "endpoint_id": "second-gain"
+          },
+          {
+            "id": "final-level",
+            "kind": "meter",
+            "display_name": "Final Level",
+            "layout": { "x": 7, "y": 70, "width": 82, "height": 12 },
+            "route": "feedback",
+            "observable": { "module_id": "LevelMeter_1", "observable_id": "peak", "channel": 0 },
+            "observation_binding_id": "final-level-observation"
+          }
+        ]
+      }
+    ],
+    "observation_bindings": [
+      {
+        "id": "final-level-observation",
+        "source": { "module_id": "LevelMeter_1", "observable_id": "peak", "channel": 0 },
+        "target": { "surface_id": "display-display-1", "widget_id": "final-level", "property": "value" }
+      }
+    ],
+    "deck": {
+      "schema_version": 1,
+      "panel": { "width_mm": 180, "height_mm": 108, "thickness_mm": 3 },
+      "elements": [
+        {
+          "id": "display-1",
+          "component_id": "touch-display-5in",
+          "display_name": "Dual Gain Display",
+          "position": { "x_mm": 0, "y_mm": 0 }
+        }
+      ]
+    }
+  }
+}

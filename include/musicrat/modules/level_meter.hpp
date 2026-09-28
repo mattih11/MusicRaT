@@ -55,6 +55,19 @@ public:
             .maximum = 4.0,
             .step = 0.01,
         }};
+        metadata.musicrat_observables.observables = {
+            {.id = "peak", .display_name = "Peak", .group = "Levels",
+             .output_port_id = "levels", .selector = "peak",
+             .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "linear",
+             .minimum = 0.0, .maximum = 4.0, .channel_selectable = true},
+            {.id = "rms", .display_name = "RMS", .group = "Levels",
+             .output_port_id = "levels", .selector = "rms",
+             .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "linear",
+             .minimum = 0.0, .maximum = 4.0, .channel_selectable = true},
+            {.id = "clipped", .display_name = "Clipped", .group = "Levels",
+             .output_port_id = "levels", .selector = "clipped",
+             .kind = SEMANTIC_KIND_BOOLEAN, .channel_selectable = true},
+        };
         return metadata;
     }
 

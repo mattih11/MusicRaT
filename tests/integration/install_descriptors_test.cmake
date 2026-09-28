@@ -1,7 +1,8 @@
 if(NOT DEFINED BUILD_DIR OR NOT DEFINED INSTALL_PREFIX
-   OR NOT DEFINED INSTALL_BINDIR OR NOT DEFINED INSTALL_DATADIR)
+    OR NOT DEFINED INSTALL_BINDIR OR NOT DEFINED INSTALL_DATADIR
+    OR NOT DEFINED EXPECTED_DESCRIPTOR_COUNT)
     message(FATAL_ERROR
-        "BUILD_DIR, INSTALL_PREFIX, INSTALL_BINDIR, and INSTALL_DATADIR are required")
+          "BUILD_DIR, install paths, and EXPECTED_DESCRIPTOR_COUNT are required")
 endif()
 
 file(REMOVE_RECURSE "${INSTALL_PREFIX}")
@@ -18,9 +19,9 @@ endif()
 file(GLOB descriptors
     "${INSTALL_PREFIX}/${INSTALL_DATADIR}/musicrat/modules/MusicRaT*.module.json")
 list(LENGTH descriptors descriptor_count)
-if(NOT descriptor_count EQUAL 12)
+if(NOT descriptor_count EQUAL EXPECTED_DESCRIPTOR_COUNT)
     message(FATAL_ERROR
-    "Expected 12 installed module descriptors, found ${descriptor_count}")
+        "Expected ${EXPECTED_DESCRIPTOR_COUNT} installed module descriptors, found ${descriptor_count}")
 endif()
 
 foreach(descriptor IN LISTS descriptors)

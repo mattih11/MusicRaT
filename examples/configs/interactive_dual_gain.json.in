@@ -1,0 +1,120 @@
+{
+  "app_name": "MusicRaTInteractiveDualGain",
+  "modules": [
+    {
+      "name": "LvglWidgetSink_1",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [{ "system_id": 60, "instance_id": 1 }],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 1 }],
+      "period_ms": 10,
+      "params": {
+        "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/interactive_dual_gain.lvgl.json",
+        "display_instance_id": "display-1",
+        "width": 800,
+        "height": 480,
+        "backend": @MUSICRAT_LVGL_EXAMPLE_BACKEND@,
+        "device_path": "",
+        "connector_id": -1,
+        "window_title": "MusicRaT Dual Gain",
+        "device_id": 1,
+        "control_bindings": [
+          { "widget_id": "first-gain", "endpoint_id": 1, "origin_id": 1, "kind": 0 },
+          { "widget_id": "second-gain", "endpoint_id": 2, "origin_id": 2, "kind": 0 }
+        ]
+      }
+    },
+    {
+      "name": "ControlMapper_1",
+      "module_class": "MusicRaTControlMapper",
+      "outputs": [{ "system_id": 20, "instance_id": 1 }],
+      "inputs": [{ "source_system_id": 60, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 3 }],
+      "params": { "bindings": [{
+        "binding_id": 1, "source_device_id": 1, "source_endpoint_id": 1,
+        "target_parameter_id": 1, "source_kind": 0, "mode": 0, "curve": 0,
+        "pickup": 0, "source_minimum": 0.0, "source_maximum": 1.0,
+        "target_minimum": 0.0, "target_maximum": 4.0, "scale": 1.0,
+        "offset": 0.0, "dead_zone": 0.0, "quantization": 0.0,
+        "hysteresis": 0.0, "pickup_tolerance": 0.01, "initial_value": 1.0,
+        "invert": false
+      }] }
+    },
+    {
+      "name": "ControlMapper_2",
+      "module_class": "MusicRaTControlMapper",
+      "outputs": [{ "system_id": 20, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 60, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 4 }],
+      "params": { "bindings": [{
+        "binding_id": 2, "source_device_id": 1, "source_endpoint_id": 2,
+        "target_parameter_id": 1, "source_kind": 0, "mode": 0, "curve": 0,
+        "pickup": 0, "source_minimum": 0.0, "source_maximum": 1.0,
+        "target_minimum": 0.0, "target_maximum": 4.0, "scale": 1.0,
+        "offset": 0.0, "dead_zone": 0.0, "quantization": 0.0,
+        "hysteresis": 0.0, "pickup_tolerance": 0.01, "initial_value": 1.0,
+        "invert": false
+      }] }
+    },
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0, "amplitude": 0.2, "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0, "enabled": true
+      }
+    },
+    {
+      "name": "Gain_1",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 2 },
+        { "system_id": 20, "instance_id": 3 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 1 }],
+      "params": { "gain": 1.0, "smoothing_samples": 64, "muted": false, "invert_polarity": false }
+    },
+    {
+      "name": "Gain_2",
+      "module_class": "MusicRaTGain",
+      "outputs": [
+        { "system_id": 10, "instance_id": 3 },
+        { "system_id": 20, "instance_id": 4 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 2 }],
+      "params": { "gain": 1.0, "smoothing_samples": 64, "muted": false, "invert_polarity": false }
+    },
+    {
+      "name": "LevelMeter_1",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 1 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
+      "name": "LevelMeterUiAdapter_1",
+      "module_class": "MusicRaTLevelMeterUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 1 }],
+      "inputs": [{ "source_system_id": 30, "source_instance_id": 1 }],
+      "params": { "bindings": [{
+        "binding_id": 3, "surface_id": "display-display-1", "widget_id": "final-level",
+        "property": 0, "selector": 0, "channel": 0
+      }] }
+    },
+    {
+      "name": "NullSink_1",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }]
+    }
+  ]
+}

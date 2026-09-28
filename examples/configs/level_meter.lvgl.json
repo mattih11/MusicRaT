@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:level-meter",
+  "displays": [
+    {
+      "instance_id": "display-1",
+      "surface_id": "main",
+      "widgets": [
+        {
+          "id": "peak-meter",
+          "kind": "meter",
+          "display_name": "Peak",
+          "layout": { "x": 10, "y": 10, "width": 20, "height": 80 },
+          "route": "feedback"
+        }
+      ]
+    }
+  ]
+}
