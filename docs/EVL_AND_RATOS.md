@@ -13,17 +13,43 @@ CommRaT currently provides two complementary CMake presets:
 
 CommRaT's `scripts/evl-dev.sh` can acquire or use local SDK and image artifacts, cross-compile, copy binaries into a QEMU guest, run tests under the EVL kernel, and regenerate module descriptors in the guest. MusicRaT should adopt this workflow rather than maintain a separate VM protocol.
 
-RaTOS currently provides `ratos-commrat-image` as the smallest image containing MusicRaT's runtime dependencies. Build its container-amd64 variant with:
+Build the container image used for MusicRaT development with:
 
 ```bash
 cd /path/to/RaTOS
-kas-container --isar build \
-  kas.yaml:kas/board/container-amd64.yaml:kas/target/commrat.yaml
+scripts/build-musicrat-image.sh
 ```
 
-The resulting ext4, kernel, and initrd are under `build/tmp/deploy/images/container-amd64/`. They are suitable as the base guest for MusicRaT development because CommRaT is installed while MusicRaT is not.
+The resulting ext4, kernel, and initrd are under
+`build/tmp/deploy/images/container-amd64/`.
 
-RaTOS does not yet contain a MusicRaT package or image recipe. Adding `musicrat_git.bb`, a `ratos-musicrat-image` image, and a matching KAS target is future integration work. The intended stack is:
+Build the Odroid H4 disk image and attended USB installer with:
+
+```bash
+scripts/build-musicrat-image.sh odroid-h4
+scripts/build-musicrat-installer.sh
+```
+
+The installer outputs are under `build/tmp/deploy/images/odroid-h4/`. Write
+`isar-image-installer-ratos-odroid-h4.wic.gz` to a USB drive with its matching
+`.wic.bmap`. The installer excludes its own boot device, prompts for the target
+disk, and requires confirmation before overwriting a nonempty disk. Verify the
+destination device before writing the USB image or installing to internal
+storage.
+
+Generate a local cross-compilation SDK and build MusicRaT against it with:
+
+```bash
+cd /path/to/RaTOS
+scripts/build-ratos-sdk.sh
+
+cd /path/to/MusicRaT
+scripts/evl-cross.sh \
+  /path/to/RaTOS/build/tmp/deploy/images/container-amd64/\
+ratos-dev-image-sdk-ratos-container-amd64.tar.xz
+```
+
+The packaged stack is:
 
 ```text
 EVL -> SeRTial/CoreRaT -> CommRaT -> MusicRaT -> RatGUI -> production image

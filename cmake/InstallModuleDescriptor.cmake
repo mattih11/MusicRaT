@@ -9,7 +9,7 @@ set(installed_binary
 string(REPLACE "\\" "\\\\" installed_binary_json "${installed_binary}")
 string(REPLACE "\"" "\\\"" installed_binary_json "${installed_binary_json}")
 string(REGEX REPLACE
-    "\"binary\":\"[^\"]*\""
+    "\"binary\"[ \t\r\n]*:[ \t\r\n]*\"[^\"]*\""
     "\"binary\":\"${installed_binary_json}\""
     installed_descriptor_json
     "${descriptor_json}")

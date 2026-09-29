@@ -977,6 +977,13 @@ if(BUILD_TESTING)
                 -P "${PROJECT_SOURCE_DIR}/tests/integration/install_descriptors_test.cmake"
         )
         add_test(
+            NAME musicrat.integration.install_formatted_descriptor
+            COMMAND ${CMAKE_COMMAND}
+                "-DDESCRIPTOR_INSTALL_SCRIPT=${PROJECT_SOURCE_DIR}/cmake/InstallModuleDescriptor.cmake"
+                "-DTEST_ROOT=${PROJECT_BINARY_DIR}/formatted-descriptor-install"
+                -P "${PROJECT_SOURCE_DIR}/tests/integration/install_formatted_descriptor_test.cmake"
+        )
+        add_test(
             NAME musicrat.integration.reject_incompatible_audio_format
             COMMAND ${CMAKE_COMMAND}
                 "-DLAUNCHER=$<TARGET_FILE:musicrat_launcher>"
