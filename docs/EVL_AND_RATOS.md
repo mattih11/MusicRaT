@@ -11,7 +11,7 @@ CommRaT currently provides two complementary CMake presets:
 - `evl-cross` cross-compiles against the RaTOS ISAR SDK.
 - `evl` builds natively inside a RaTOS QEMU guest.
 
-CommRaT's `scripts/evl-dev.sh` can acquire or use local SDK and image artifacts, cross-compile, copy binaries into a QEMU guest, run tests under the EVL kernel, and regenerate module descriptors in the guest. MusicRaT should adopt this workflow rather than maintain a separate VM protocol.
+CommRaT's `scripts/evl-dev.sh` can acquire or use local SDK and image artifacts, cross-compile, copy binaries into a QEMU guest, and run tests under the EVL kernel. Complete module descriptors are generated during the build by metadata-only inspectors that do not load `libevl` or add inspection code to runtime binaries.
 
 Build the container image used for MusicRaT development with:
 
@@ -73,14 +73,14 @@ These tests are fast and deterministic, but they do not prove EVL ABI compatibil
 
 MusicRaT must gain an `evl-cross` preset using the same RaTOS SDK toolchain as CommRaT. This stage must compile all public headers, modules, tests, and the launcher against the SDK and preserve one generated audio-policy ABI across every binary.
 
-Cross-building proves SDK and dependency compatibility. Cross-compiled module executables must not be run on the host merely to generate descriptors.
+Cross-building proves SDK and dependency compatibility. Descriptor generation runs separate build-only inspectors; cross-compiled runtime module executables are never executed on the host.
 
 ### 3. EVL QEMU Runtime
 
 Deploy the cross-built tree to `ratos-commrat-image` and run under its EVL kernel. This stage must:
 
 - Run protocol, DSP, module, and headless integration tests
-- Generate complete module descriptors using `--commrat-inspect` in the guest
+- Verify the build-generated descriptors against installed module binaries
 - Launch the controlled source -> processor -> sink graph for a bounded duration
 - Verify clean lifecycle shutdown and report dropped, late, or discontinuous blocks
 - Run the upstream EVL sanity tests before attributing a failure to MusicRaT
@@ -131,7 +131,7 @@ MusicRaT CI should grow in this order:
 
 1. Standard Linux configure, build, CTest, launcher smoke test, and sanitizers.
 2. RaTOS SDK cross-compile, cached by the pinned RaTOS artifact version.
-3. EVL QEMU CTest, in-guest descriptor generation, and controlled-graph smoke test.
+3. EVL QEMU CTest, installed-descriptor validation, and controlled-graph smoke test.
 4. RaTOS recipe and image build triggered by pinned MusicRaT releases.
 5. Scheduled or release-gated physical-board stress and latency tests.
 

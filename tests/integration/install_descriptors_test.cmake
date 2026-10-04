@@ -26,6 +26,16 @@ endif()
 
 foreach(descriptor IN LISTS descriptors)
     file(READ "${descriptor}" descriptor_json)
+    foreach(required_field IN ITEMS
+            outputs inputs synced_inputs remotes execution_mode descriptor_metadata)
+        string(JSON field_type ERROR_VARIABLE field_error
+            TYPE "${descriptor_json}" "${required_field}")
+        if(NOT "${field_error}" STREQUAL "NOTFOUND")
+            message(FATAL_ERROR
+                "Installed descriptor is incomplete (${required_field}): ${descriptor}")
+        endif()
+    endforeach()
+
     string(REGEX MATCH "\"binary\":\"([^\"]+)\"" _ "${descriptor_json}")
     if(NOT CMAKE_MATCH_1)
         message(FATAL_ERROR "Installed descriptor has no binary path: ${descriptor}")
@@ -40,3 +50,10 @@ foreach(descriptor IN LISTS descriptors)
             "Installed descriptor binary does not exist: ${descriptor_binary}")
     endif()
 endforeach()
+
+file(GLOB installed_inspectors
+    "${INSTALL_PREFIX}/${INSTALL_BINDIR}/*__commrat_descriptor_inspector")
+if(installed_inspectors)
+    message(FATAL_ERROR
+        "Build-only descriptor inspectors were installed: ${installed_inspectors}")
+endif()
