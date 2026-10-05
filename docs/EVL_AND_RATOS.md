@@ -36,6 +36,23 @@ excludes its own boot device, prompts for the target disk, and requires
 confirmation before overwriting a nonempty disk. Verify the destination device
 before writing the USB image or installing to internal storage.
 
+The installed H4 image starts `systemd-networkd`, requests an IPv4 address over
+DHCP on each wired Ethernet interface, regenerates its SSH host keys, and starts
+OpenSSH. Find the assigned address in the router's DHCP leases or run
+`ip -4 -br address` on the local console, then connect with:
+
+```bash
+ssh root@<device-ip>
+```
+
+Development images use the upstream default root password `root`. Change it
+with `passwd` before connecting the device to an untrusted network.
+
+The image also runs Avahi for Zeroconf discovery. On hosts with mDNS support,
+connect directly with `ssh root@ratos-musicrat.local`. DNS-SD browsers expose
+the advertised `_ssh._tcp` service as `MusicRaT on ratos-musicrat`, with
+`role=musicrat` and `os=RaTOS` metadata.
+
 Generate a local cross-compilation SDK and build MusicRaT against it with:
 
 ```bash
