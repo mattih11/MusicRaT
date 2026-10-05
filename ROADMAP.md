@@ -30,8 +30,8 @@ Media decoding, performance playback, recording, and live-device boundaries are 
 - [x] Routed audio-file-player-to-WAV integration with managed router lifecycle
 - [~] Automated tests and benchmarks
 - [~] Multi-channel audio block contract
-- [ ] Audio graph lifecycle and validation
-- [ ] Hardware audio, MIDI, and RatGUI integration
+- [~] Audio graph lifecycle and validation
+- [~] Hardware audio, MIDI, and RatGUI integration
 
 ## Architecture Principles
 
@@ -63,8 +63,8 @@ Stabilize the contract that every later module will use.
 - [x] Establish `musicrat/musicrat.hpp` as the application-registry umbrella and split protocol definitions by domain
 - [x] Define reusable parameter messages and stable module/parameter identifiers
 - [~] Define parameter validation, units, ranges, defaults, and smoothing behavior
-- [ ] Define stable device, endpoint, control, port, route, and binding identifiers
-- [ ] Define transport messages: play, stop, pause, seek, tempo, time signature, and position
+- [~] Define stable device, endpoint, control, port, route, and binding identifiers
+- [x] Define transport messages: play, stop, pause, seek, tempo, time signature, and position
 - [ ] Define module lifecycle and graph state: configure, prepare, start, suspend, stop, reset
 - [ ] Define fan-in, fan-out, backpressure, and dropped-block behavior in CommRaT terms
 - [x] Add oscillator timestamp and block sequence tracking
@@ -151,13 +151,12 @@ before implementing further DSP modules. The implementation remains generic,
 while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
 
-**Next implementation focus:** expand Designer-authored LVGL surfaces and have
-strict export materialize their runtime modules and routes. Add richer display
-widgets and semantic interaction for configured on-screen controls without
-turning LVGL into a hardware-input layer. Physical knobs, encoders, buttons,
-switches, and faders remain device-adapter endpoints. DRM/KMS target validation,
-Linux input devices, EVL/RaTOS, and RatGUI remain deferred until the relevant
-hardware or runtime environment is available.
+**Next implementation focus:** bring up the pinned Odroid H4 image on physical
+hardware. Boot the attended installer, launch an installed source -> processor
+-> sink graph under EVL, validate LVGL DRM/KMS output, and record the board and
+display configuration. Then implement the target audio backend and measure its
+underrun, latency, and jitter behavior. RatGUI and live topology editing remain
+deferred until their runtime ownership contracts are defined.
 
 - [~] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
   - [x] Add schema-versioned stable IDs and labels for physical module ports
@@ -206,7 +205,7 @@ hardware or runtime environment is available.
     - [ ] Later validate DRM/KMS output on a physical target and record the supported image/device
   - [x] Materialize one LVGL sink per observed display during strict export
   - [x] Add a bounded widget-update merger for multiple observation adapter streams
-  - [~] Expand the LVGL renderer to the Designer's supported display-widget catalog
+  - [x] Expand the LVGL renderer to the Designer's supported display-widget catalog
     - [x] Render meter, toggle, text, slider, knob, and button widgets
     - [x] Render fader and choice widgets
   - [x] Emit semantic control/action events from configured interactive on-screen widgets
@@ -293,7 +292,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
 
 ## Phase 3: Sources and Instruments
 
-- [ ] Bring the oscillator onto the finalized audio block and parameter contracts
+- [x] Bring the oscillator onto the finalized audio block and parameter contracts
 - [ ] Add pulse width, tuning, detune, and anti-aliased oscillator variants
 - [ ] Add wavetable oscillator with bounded table storage
 - [ ] Add ADSR envelope module
@@ -388,34 +387,34 @@ Raw protocol packets may be exposed by diagnostics, but normal graph routing sho
 
 ### Semantic Events and Parameters
 
-- [ ] Define timestamped POD event messages for continuous, bipolar, discrete, gate, trigger, note, and transport values
-- [ ] Carry source endpoint ID, sequence number, timestamp, and value in each event
-- [ ] Define a `ParameterDescriptor`: stable ID, name, unit, type, range, default, step, display mapping, and automation capability
-- [ ] Let modules expose typed control input ports separately from their command mailbox
+- [x] Define timestamped POD event messages for continuous, bipolar, discrete, gate, trigger, note, and transport values
+- [x] Carry source endpoint ID, sequence number, timestamp, and value in each event
+- [x] Define a `ParameterDescriptor`: stable ID, name, unit, type, range, default, step, display mapping, and automation capability
+- [x] Let modules expose typed control input ports separately from their command mailbox
 - [ ] Convert control timestamps into sample offsets when events affect an audio block
 - [ ] Define event ordering, duplicate suppression, overflow behavior, and late-event policy
-- [ ] Avoid registry growth per physical knob by routing endpoint IDs in bounded event messages
+- [x] Avoid registry growth per physical knob by routing endpoint IDs in bounded event messages
 
 ### Bindings and Transforms
 
 A binding is persistent graph data from one control endpoint to one target parameter, not hidden state inside either module.
 
-- [ ] Define source endpoint -> target parameter bindings with stable route IDs
-- [ ] Support range scaling, inversion, offset, dead zone, response curves, quantization, and hysteresis
+- [x] Define source endpoint -> target parameter bindings with stable route IDs
+- [x] Support range scaling, inversion, offset, dead zone, response curves, quantization, and hysteresis
 - [ ] Support absolute, relative encoder, toggle, momentary, trigger, and increment/decrement modes
-- [ ] Support pickup/soft-takeover modes to prevent parameter jumps
+- [x] Support pickup/soft-takeover modes to prevent parameter jumps
 - [ ] Allow one-to-many mappings and define how multiple sources arbitrate one parameter
-- [ ] Put smoothing at the parameter boundary; keep mapping transforms deterministic
+- [x] Put smoothing at the parameter boundary; keep mapping transforms deterministic
 - [ ] Support conditional mappings such as modifier buttons, banks, pages, and MIDI channels
 - [~] Support bidirectional feedback for LEDs, displays, and motorized controls without feedback loops
   - [x] Add the protocol, headless router, generated routes, and virtual-adapter proof
   - [ ] Add protocol-specific hardware feedback adapters
-- [ ] Persist mappings independently from transient device connection state
+- [x] Persist mappings independently from transient device connection state
 
 ### Graphical Routing
 
 - [ ] Represent devices as graph nodes with named, typed endpoint ports
-- [ ] Represent module parameters as connectable control ports without cluttering the default audio graph
+- [x] Represent module parameters as connectable control ports without cluttering the default audio graph
 - [ ] Provide audio, note, control, transport, and telemetry layers or filters in RatGUI
 - [ ] Use domain-specific port styling and show compatibility before a connection is made
 - [ ] Insert an editable mapping node when a route needs scaling, curves, gating, or mode conversion
@@ -481,8 +480,9 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
 - [~] Confirm LVGL version, display/input drivers, threading boundary, and RaTOS integration
   - [x] Add an optional LVGL 9 widget renderer with headless object-level validation
   - [x] Add a bounded SPSC handoff from message callbacks to the LVGL thread
-  - [ ] Select the first display/input driver and connect the CommRaT subscriber
-- [ ] Implement shared renderer-neutral surface loading and capability validation
+  - [x] Add SDL2, DRM/KMS, and fbdev display drivers and connect the CommRaT subscriber
+  - [ ] Validate DRM/KMS and input on the physical H4 target
+- [x] Implement shared renderer-neutral surface loading and capability validation
 - [ ] Define bounded UI snapshot messages and configurable publication rates
 - [ ] Module browser with lifecycle and health state
 - [ ] Graph view with typed ports, connections, and validation feedback
@@ -531,11 +531,13 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
 
 ### EVL and RaTOS
 
-- [ ] Add MusicRaT `evl` and `evl-cross` CMake presets aligned with CommRaT
-- [ ] Adapt CommRaT's EVL development helper for SDK acquisition, deployment, tests, and in-guest descriptor generation
-- [ ] Cross-compile every module, test, and application against the pinned RaTOS ISAR SDK
+- [x] Add MusicRaT `evl` and `evl-cross` CMake presets aligned with CommRaT
+- [~] Add RaTOS SDK acquisition/build helpers; QEMU deployment and runtime test orchestration remain
+- [~] Build every runtime module and application against the pinned EVL stack; SDK test cross-build remains
 - [ ] Run CTest and the controlled source -> processor -> sink graph under the EVL kernel in QEMU
-- [ ] Add a RaTOS `musicrat_git.bb` package recipe, `ratos-musicrat-image`, and matching KAS target
+- [x] Add a pinned RaTOS `musicrat_git.bb` package recipe, `ratos-musicrat-image`, and matching KAS target
+- [x] Validate complete installed descriptors and exclude build-only inspectors from the package and image
+- [x] Build an Odroid H4 image and attended installer from pinned upstream revisions
 - [ ] Boot-test installed MusicRaT examples without source-tree or build-tree dependencies
 - [ ] Add physical-target audio stress tests for underruns, worst-case processing time, latency, and jitter
 - [ ] Publish a compatibility matrix keyed by MusicRaT, CommRaT, RaTOS, kernel, board, and audio backend versions
@@ -551,8 +553,8 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
 ### Project Delivery
 
 - [ ] Add README with build, run, architecture, and first-patch instructions
-- [ ] Export a consumable CMake library target instead of only demo executables
-- [ ] Add install rules for headers, targets, and package configuration
+- [x] Export consumable CMake library targets
+- [x] Add install rules for headers, targets, package configuration, modules, descriptors, and examples
 - [ ] Add CI for supported compilers and configurations
 - [ ] Generate API documentation and module authoring guide
 - [ ] Add complete examples: synthesizer, EQ strip, mixer, MIDI instrument, and headless render
@@ -610,12 +612,12 @@ Record decisions here before their dependent phase begins.
 | Scheduling model | Fixed-size processing quantum synchronized to the audio device | Open |
 | Media decode boundary | In-band decoder worker feeding preallocated PCM chunks to the real-time renderer | Decided |
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
-| Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Proposed |
+| Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |
 | Compressed recording | Bounded PCM handoff to an in-band encoder worker | Decided |
-| First audio backend | JACK/PipeWire on Linux | Open |
+| First audio backend | PipeWire on development Linux; EVL tinyalsa planned for targets | Decided |
 | Portable audio backend | Evaluate RtAudio and miniaudio | Open |
 | MIDI backend | Evaluate ALSA sequencer and a portable abstraction | Open |
-| External control representation | Semantic typed events plus persistent parameter bindings | Proposed |
+| External control representation | Semantic typed events plus persistent parameter bindings | Decided |
 | Device identity | Backend ID plus vendor/product/serial identity where available | Open |
 | Control timing | Monotonic timestamps converted to in-block sample offsets | Proposed |
 | Parameter arbitration | Explicit policy per target when multiple routes write | Open |

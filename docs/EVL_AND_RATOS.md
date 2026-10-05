@@ -31,11 +31,10 @@ scripts/build-musicrat-installer.sh
 ```
 
 The installer outputs are under `build/tmp/deploy/images/odroid-h4/`. Write
-`isar-image-installer-ratos-odroid-h4.wic.gz` to a USB drive with its matching
-`.wic.bmap`. The installer excludes its own boot device, prompts for the target
-disk, and requires confirmation before overwriting a nonempty disk. Verify the
-destination device before writing the USB image or installing to internal
-storage.
+`isar-image-installer-ratos-odroid-h4.wic` to a USB drive. The installer
+excludes its own boot device, prompts for the target disk, and requires
+confirmation before overwriting a nonempty disk. Verify the destination device
+before writing the USB image or installing to internal storage.
 
 Generate a local cross-compilation SDK and build MusicRaT against it with:
 
@@ -71,7 +70,10 @@ These tests are fast and deterministic, but they do not prove EVL ABI compatibil
 
 ### 2. EVL Cross-Build
 
-MusicRaT must gain an `evl-cross` preset using the same RaTOS SDK toolchain as CommRaT. This stage must compile all public headers, modules, tests, and the launcher against the SDK and preserve one generated audio-policy ABI across every binary.
+MusicRaT provides an `evl-cross` preset using the same RaTOS SDK toolchain as
+CommRaT. This stage must compile all public headers, modules, tests, and the
+launcher against the SDK and preserve one generated audio-policy ABI across
+every binary.
 
 Cross-building proves SDK and dependency compatibility. Descriptor generation runs separate build-only inspectors; cross-compiled runtime module executables are never executed on the host.
 
