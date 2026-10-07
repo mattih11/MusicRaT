@@ -110,10 +110,11 @@ The companion `WavReader` provides non-real-time PCM16 RIFF parsing for the futu
 
 `MusicRaTAudioDeviceSink` is the backend-neutral live playback module. Select
 one implementation for the whole build with `MUSICRAT_AUDIO_BACKEND`: `AUTO`
-uses PipeWire when its development package is available, `PIPEWIRE` requires
-it explicitly, and `NONE` keeps descriptors and tests available without a live
-device. `EVL_TINYALSA` is reserved for the target backend and currently fails
-configuration until that implementation is present.
+prefers PipeWire and then ALSA when their development packages are available,
+`PIPEWIRE` and `ALSA` require their respective backend explicitly, and `NONE`
+keeps descriptors and tests available without a live device. `EVL_TINYALSA`
+remains reserved for a strict OOB backend and fails configuration because the
+current 6.12 kernel has no EVL-enabled ALSA PCM path.
 
 The PipeWire implementation requests interleaved float audio at the configured
 sample rate and channel count. A preallocated bounded SPSC queue separates the
@@ -127,6 +128,13 @@ FL/FR/FC/LFE/RC/SL/SR; and 7.1 FL/FR/FC/LFE/RL/RR/SL/SR. PipeWire
 configurations above eight channels are rejected until an explicit layout
 contract exists. Device discovery,
 published counter telemetry, and hot-plug recovery remain pending.
+
+The ALSA implementation opens the configured PCM directly, defaulting to
+`default`, and requests interleaved PCM16. Its preallocated bounded SPSC queue
+keeps all ALSA calls on a dedicated worker thread; the CommRaT producer only
+validates, converts, copies, and publishes complete blocks. Queue overflow
+rejects the complete incoming block. ALSA underruns and unrecoverable stream
+failures are exposed through the same counters as the PipeWire backend.
 
 Run the host example after building with PipeWire support:
 

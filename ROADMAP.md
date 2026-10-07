@@ -454,9 +454,10 @@ Published device telemetry, enumeration, and runtime selection are deferred unti
 RatGUI has audio-device status and settings surfaces that can consume them.
 
 - [x] Select the first backend and document platform scope
-  - PipeWire is the Linux development-host backend; EVL tinyalsa is reserved for strict OOB target builds
+  - PipeWire is the Linux development-host backend; direct ALSA is the initial RaTOS target backend
+  - A future strict `EVL_ALSA` backend requires an EVL-enabled ALSA core and HDA driver and must not fall back to in-band I/O
 - [ ] Audio device enumeration and capability reporting
-- [x] Audio output sink with fixed-format PipeWire negotiation and canonical one-to-eight-channel mapping
+- [x] Audio output sink with fixed-format PipeWire and direct ALSA backends
 - [ ] Audio input source
 - [ ] Full-duplex operation
 - [x] Bounded buffering between CommRaT scheduling and the device callback
@@ -614,7 +615,8 @@ Record decisions here before their dependent phase begins.
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
 | Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |
 | Compressed recording | Bounded PCM handoff to an in-band encoder worker | Decided |
-| First audio backend | PipeWire on development Linux; EVL tinyalsa planned for targets | Decided |
+| First audio backend | PipeWire on development Linux; direct ALSA on RaTOS targets | Decided |
+| Strict OOB audio | Future `EVL_ALSA` backend after ALSA-core and HDA OOB support | Planned |
 | Portable audio backend | Evaluate RtAudio and miniaudio | Open |
 | MIDI backend | Evaluate ALSA sequencer and a portable abstraction | Open |
 | External control representation | Semantic typed events plus persistent parameter bindings | Decided |

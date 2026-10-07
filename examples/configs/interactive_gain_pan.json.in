@@ -9,7 +9,7 @@
       "synced_inputs": [],
       "period_ms": 10,
       "params": {
-        "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/interactive_gain_pan.lvgl.json",
+        "manifest_path": "@MUSICRAT_LVGL_MANIFEST_DIR@/interactive_gain_pan.lvgl.json",
         "display_instance_id": "display-1",
         "width": 800,
         "height": 480,

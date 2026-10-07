@@ -26,13 +26,13 @@ option(MUSICRAT_LVGL_ENABLE_FBDEV
 option(MUSICRAT_LVGL_ENABLE_SDL
     "Enable the LVGL SDL2 desktop window backend" OFF)
 set(MUSICRAT_AUDIO_BACKEND "AUTO" CACHE STRING
-    "Audio device backend (AUTO, PIPEWIRE, EVL_TINYALSA, or NONE)")
+    "Audio device backend (AUTO, PIPEWIRE, ALSA, EVL_TINYALSA, or NONE)")
 set_property(CACHE MUSICRAT_AUDIO_BACKEND PROPERTY STRINGS
-    AUTO PIPEWIRE EVL_TINYALSA NONE)
+    AUTO PIPEWIRE ALSA EVL_TINYALSA NONE)
 
-if(NOT MUSICRAT_AUDIO_BACKEND MATCHES "^(AUTO|PIPEWIRE|EVL_TINYALSA|NONE)$")
+if(NOT MUSICRAT_AUDIO_BACKEND MATCHES "^(AUTO|PIPEWIRE|ALSA|EVL_TINYALSA|NONE)$")
     message(FATAL_ERROR
-        "MUSICRAT_AUDIO_BACKEND must be AUTO, PIPEWIRE, EVL_TINYALSA, or NONE")
+        "MUSICRAT_AUDIO_BACKEND must be AUTO, PIPEWIRE, ALSA, EVL_TINYALSA, or NONE")
 endif()
 
 if(NOT MUSICRAT_SAMPLE_TYPE MATCHES "^(float|double)$")
@@ -88,12 +88,15 @@ find_package(SeRTial REQUIRED)
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(PIPEWIRE QUIET IMPORTED_TARGET libpipewire-0.3)
+    pkg_check_modules(ALSA QUIET IMPORTED_TARGET alsa)
     pkg_check_modules(EVL_TINYALSA QUIET IMPORTED_TARGET tinyalsa)
 endif()
 
 if(MUSICRAT_AUDIO_BACKEND STREQUAL "AUTO")
     if(TARGET PkgConfig::PIPEWIRE)
         set(MUSICRAT_AUDIO_BACKEND "PIPEWIRE")
+    elseif(TARGET PkgConfig::ALSA)
+        set(MUSICRAT_AUDIO_BACKEND "ALSA")
     else()
         set(MUSICRAT_AUDIO_BACKEND "NONE")
     endif()
@@ -101,6 +104,10 @@ elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "PIPEWIRE"
         AND NOT TARGET PkgConfig::PIPEWIRE)
     message(FATAL_ERROR
         "MUSICRAT_AUDIO_BACKEND=PIPEWIRE requires libpipewire-0.3 development files")
+elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA"
+        AND NOT TARGET PkgConfig::ALSA)
+    message(FATAL_ERROR
+        "MUSICRAT_AUDIO_BACKEND=ALSA requires ALSA development files")
 elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "EVL_TINYALSA"
         AND NOT TARGET PkgConfig::EVL_TINYALSA)
     message(FATAL_ERROR
@@ -342,6 +349,9 @@ endif()
 if(MUSICRAT_AUDIO_BACKEND STREQUAL "PIPEWIRE")
     set(MUSICRAT_AUDIO_BACKEND_SOURCE
         src/backends/audio/audio_output_backend_pipewire.cpp)
+elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
+    set(MUSICRAT_AUDIO_BACKEND_SOURCE
+        src/backends/audio/audio_output_backend_alsa.cpp)
 elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "EVL_TINYALSA")
     message(FATAL_ERROR
         "The EVL tinyalsa audio backend is selected but not implemented yet")
@@ -357,6 +367,8 @@ set_target_properties(musicrat_audio_device_backend PROPERTIES
 target_link_libraries(musicrat_audio_device_backend PUBLIC musicrat_core)
 if(MUSICRAT_AUDIO_BACKEND STREQUAL "PIPEWIRE")
     target_link_libraries(musicrat_audio_device_backend PRIVATE PkgConfig::PIPEWIRE)
+elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
+    target_link_libraries(musicrat_audio_device_backend PRIVATE PkgConfig::ALSA)
 endif()
 
 install(TARGETS musicrat_core musicrat_audio_device_backend
@@ -388,6 +400,16 @@ install(FILES
 install(DIRECTORY examples/configs/
     DESTINATION "${CMAKE_INSTALL_DATADIR}/musicrat/examples"
     FILES_MATCHING PATTERN "*.json")
+set(MUSICRAT_LVGL_EXAMPLE_BACKEND 1)
+set(MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH "")
+set(MUSICRAT_LVGL_MANIFEST_DIR
+    "${CMAKE_INSTALL_FULL_DATADIR}/musicrat/examples")
+configure_file(
+    examples/configs/interactive_gain_pan.json.in
+    "${PROJECT_BINARY_DIR}/h4_tone_to_device_lvgl.json"
+    @ONLY)
+install(FILES "${PROJECT_BINARY_DIR}/h4_tone_to_device_lvgl.json"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/musicrat/examples")
 
 # Build options
 option(BUILD_MUSICRAT "Build MusicRaT synthesizer" OFF)
@@ -786,6 +808,15 @@ if(BUILD_TESTING)
     add_test(NAME musicrat.modules.audio_device_sink
         COMMAND musicrat_audio_device_sink_test)
 
+    if(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
+        add_executable(musicrat_audio_output_backend_alsa_test
+            tests/backends/audio_output_backend_alsa_test.cpp)
+        target_link_libraries(musicrat_audio_output_backend_alsa_test
+            PRIVATE musicrat_audio_device_backend)
+        add_test(NAME musicrat.backends.audio_output_alsa
+            COMMAND musicrat_audio_output_backend_alsa_test)
+    endif()
+
     add_executable(musicrat_varispeed_renderer_test
         tests/dsp/varispeed_renderer_test.cpp)
     target_link_libraries(musicrat_varispeed_renderer_test PRIVATE musicrat_core)
@@ -1067,6 +1098,8 @@ if(BUILD_TESTING)
         if(TARGET musicrat_lvgl_widget_sink)
             set(MUSICRAT_LVGL_EXAMPLE_BACKEND 0)
             set(MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH "")
+            set(MUSICRAT_LVGL_MANIFEST_DIR
+                "${PROJECT_SOURCE_DIR}/examples/configs")
             configure_file(
                 examples/configs/level_meter_to_lvgl.json.in
                 "${PROJECT_BINARY_DIR}/level_meter_to_lvgl.json"
