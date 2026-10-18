@@ -160,18 +160,19 @@ remain deferred until their runtime ownership contracts are defined.
 
 ### H4 Stabilization Milestone
 
-- [~] Land the audio timing and buffering fixes
+- [x] Land the audio timing and buffering fixes
   - [x] Use CommRaT/CoreRaT absolute periodic deadlines instead of accumulating relative-sleep lateness
   - [x] Add bounded playback pre-roll and starvation recovery for PipeWire and ALSA
   - [x] Test deadline drift, bounded catch-up, pre-roll thresholds, and ALSA reopen behavior
-  - [ ] Commit and publish matching CommRaT and MusicRaT revisions
-- [ ] Produce a reproducible updated H4 image
-  - [ ] Require clean release worktrees and upstream-matching revisions before pinning RaTOS recipes
-  - [ ] Regenerate the SDK from the pinned dependency stack, including ALSA development files
-  - [ ] Cross-build with the regenerated SDK without local header or library overlays
-  - [ ] Build the pinned H4 image and verify the installed gain/pan demo after reboot
+  - [x] Commit and publish matching CommRaT and MusicRaT revisions
+- [~] Produce a reproducible updated H4 image
+  - [x] Require clean release worktrees and upstream-matching revisions before pinning RaTOS recipes
+  - [x] Regenerate the SDK from the pinned dependency stack, including ALSA development files
+  - [x] Cross-build with the regenerated SDK without local header or library overlays
+  - [x] Build the pinned H4 image and smoke-test its installed oscillator graph in EVL QEMU
+  - [ ] Deploy the pinned H4 image and verify the installed gain/pan demo after reboot
 - [~] Automate layered validation
-  - [~] Provide repeatable SDK cross-build and EVL runtime validation commands; complete pinned-SDK qualification remains
+  - [x] Provide repeatable SDK cross-build and EVL runtime validation commands; verify the regenerated pinned SDK without development overlays
   - [x] Run targeted SDK-built tests and the controlled oscillator graph under EVL QEMU
   - [ ] Automate the QEMU boot/deploy/test/teardown sequence with explicit failure propagation
   - [x] Add a bounded platform-clock playback probe with machine-readable health results, tested natively and on EVL QEMU/H4 with null PCM
