@@ -28,6 +28,7 @@ int main() {
     const auto headless = create_lvgl_display({
         .backend = LvglDisplayBackend::Headless,
         .device_path = {},
+        .input_device_path = {},
         .connector_id = -1,
         .width = 320,
         .height = 240,
@@ -38,10 +39,22 @@ int main() {
     assert(headless.height == 240);
     lv_display_delete(headless.display);
 
+    const auto missing_input = create_lvgl_display({
+        .backend = LvglDisplayBackend::Headless,
+        .device_path = {},
+        .input_device_path = "/dev/input/musicrat-missing-input-device",
+        .connector_id = -1,
+        .width = 320,
+        .height = 240,
+        .title = "MusicRaT Missing Input Test",
+    });
+    assert(missing_input.display == nullptr);
+
 #if MUSICRAT_LVGL_HAS_DRM
     const auto missing_drm = create_lvgl_display({
         .backend = LvglDisplayBackend::Drm,
         .device_path = "/dev/musicrat-missing-drm-device",
+        .input_device_path = {},
         .connector_id = -1,
         .width = 800,
         .height = 480,
@@ -54,6 +67,7 @@ int main() {
     const auto missing_fbdev = create_lvgl_display({
         .backend = LvglDisplayBackend::Framebuffer,
         .device_path = "/dev/musicrat-missing-framebuffer",
+        .input_device_path = {},
         .connector_id = -1,
         .width = 800,
         .height = 480,

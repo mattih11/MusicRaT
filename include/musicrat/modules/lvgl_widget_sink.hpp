@@ -134,6 +134,13 @@ public:
                 .step = 1.0,
                 .choices = {},
             },
+            {
+                .id = Parameters::LVGL_WIDGET_SINK_INPUT_DEVICE_PATH_PARAMETER_ID,
+                .name = "input_device_path",
+                .display_name = "Input Device",
+                .group = "Display",
+                .kind = PARAMETER_KIND_TEXT,
+            },
         };
         return metadata;
     }
@@ -283,6 +290,7 @@ private:
             auto lvgl_display = musicrat::backends::create_lvgl_display({
                 .backend = backend,
                 .device_path = this->params_.device_path.c_str(),
+                .input_device_path = this->params_.input_device_path.c_str(),
                 .connector_id = this->params_.connector_id,
                 .width = this->params_.width,
                 .height = this->params_.height,

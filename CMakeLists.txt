@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MusicRaT VERSION 1.0.0 LANGUAGES CXX)
+project(MusicRaT VERSION 1.0.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -288,6 +288,7 @@ if(MUSICRAT_LVGL_SOURCE_DIR)
             LV_SDL_DIRECT_EXIT=1)
         target_link_libraries(lvgl PUBLIC PkgConfig::SDL2)
     endif()
+    target_compile_definitions(lvgl PUBLIC LV_USE_EVDEV=1)
 
     add_library(musicrat_lvgl_widgets
         src/backends/lvgl_display_backend.cpp
@@ -402,6 +403,8 @@ install(DIRECTORY examples/configs/
     FILES_MATCHING PATTERN "*.json")
 set(MUSICRAT_LVGL_EXAMPLE_BACKEND 1)
 set(MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH "")
+set(MUSICRAT_LVGL_EXAMPLE_INPUT_DEVICE_PATH
+    "/dev/input/by-id/usb-wch.cn_USB2IIC_CTP_CONTROL-event-if00")
 set(MUSICRAT_LVGL_MANIFEST_DIR
     "${CMAKE_INSTALL_FULL_DATADIR}/musicrat/examples")
 configure_file(

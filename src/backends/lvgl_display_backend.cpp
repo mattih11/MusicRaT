@@ -113,8 +113,21 @@ LvglDisplayHandle create_lvgl_display(
     }
 
     if (display == nullptr) return {};
+
+    lv_indev_t* pointer = nullptr;
+    if (!config.input_device_path.empty()) {
+        const std::string input_device_path{config.input_device_path};
+        pointer = lv_evdev_create(
+            LV_INDEV_TYPE_POINTER, input_device_path.c_str());
+        if (pointer == nullptr) {
+            lv_display_delete(display);
+            return {};
+        }
+        lv_indev_set_display(pointer, display);
+    }
     return {
         .display = display,
+        .pointer = pointer,
         .width = lv_display_get_horizontal_resolution(display),
         .height = lv_display_get_vertical_resolution(display),
     };
@@ -124,6 +137,7 @@ void destroy_lvgl_display(
     LvglDisplayHandle& handle,
     LvglDisplayBackend backend) noexcept {
     if (handle.display == nullptr) return;
+    lv_evdev_delete(handle.pointer);
     lv_display_delete(handle.display);
     handle = {};
 #if MUSICRAT_LVGL_HAS_SDL

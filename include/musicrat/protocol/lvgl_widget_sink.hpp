@@ -19,6 +19,7 @@ inline constexpr uint32_t LVGL_WIDGET_SINK_DEVICE_PATH_PARAMETER_ID = 6;
 inline constexpr uint32_t LVGL_WIDGET_SINK_CONNECTOR_ID_PARAMETER_ID = 7;
 inline constexpr uint32_t LVGL_WIDGET_SINK_WINDOW_TITLE_PARAMETER_ID = 8;
 inline constexpr uint32_t LVGL_WIDGET_SINK_DEVICE_ID_PARAMETER_ID = 9;
+inline constexpr uint32_t LVGL_WIDGET_SINK_INPUT_DEVICE_PATH_PARAMETER_ID = 10;
 
 inline constexpr uint8_t LVGL_DISPLAY_BACKEND_HEADLESS = 0;
 inline constexpr uint8_t LVGL_DISPLAY_BACKEND_DRM = 1;
@@ -46,6 +47,7 @@ struct LvglWidgetSink {
     sertial::fixed_string<128> window_title{"MusicRaT"};
     CommRaT::Messages::ControlDeviceId device_id{
         CommRaT::Messages::INVALID_CONTROL_DEVICE_ID};
+    sertial::fixed_string<256> input_device_path{};
     sertial::fixed_vector<
         LvglWidgetControlBinding,
         musicrat::config::max_control_events> control_bindings{};

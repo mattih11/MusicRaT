@@ -15,6 +15,7 @@
         "height": 480,
         "backend": @MUSICRAT_LVGL_EXAMPLE_BACKEND@,
         "device_path": "@MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH@",
+        "input_device_path": "@MUSICRAT_LVGL_EXAMPLE_INPUT_DEVICE_PATH@",
         "connector_id": -1,
         "window_title": "MusicRaT Gain and Pan",
         "device_id": 1,

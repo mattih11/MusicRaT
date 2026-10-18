@@ -17,6 +17,7 @@ enum class LvglDisplayBackend : uint8_t {
 struct LvglDisplayConfig {
     LvglDisplayBackend backend{LvglDisplayBackend::Headless};
     std::string_view device_path;
+    std::string_view input_device_path;
     int64_t connector_id{-1};
     uint32_t width{800};
     uint32_t height{480};
@@ -25,6 +26,7 @@ struct LvglDisplayConfig {
 
 struct LvglDisplayHandle {
     lv_display_t* display{nullptr};
+    lv_indev_t* pointer{nullptr};
     int32_t width{0};
     int32_t height{0};
 };
