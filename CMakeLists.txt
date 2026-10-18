@@ -674,6 +674,12 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(musicrat_audio_output_probe src/apps/audio_output_probe_main.cpp)
+    target_link_libraries(musicrat_audio_output_probe PRIVATE musicrat_audio_device_backend)
+    add_test(NAME musicrat.backends.audio_probe_invalid
+        COMMAND ${CMAKE_COMMAND} "-DPROBE=$<TARGET_FILE:musicrat_audio_output_probe>"
+            -DMODE=invalid -P "${PROJECT_SOURCE_DIR}/tests/integration/audio_output_probe_test.cmake")
+
     add_executable(musicrat_audio_block_test tests/protocol/audio_block_test.cpp)
     target_link_libraries(musicrat_audio_block_test PRIVATE musicrat_core)
     add_test(NAME musicrat.protocol.audio_block COMMAND musicrat_audio_block_test)
@@ -808,16 +814,38 @@ if(BUILD_TESTING)
         tests/modules/audio_device_sink_test.cpp)
     target_link_libraries(musicrat_audio_device_sink_test
         PRIVATE musicrat_audio_device_backend)
+    target_compile_options(musicrat_audio_device_sink_test
+        PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
     add_test(NAME musicrat.modules.audio_device_sink
         COMMAND musicrat_audio_device_sink_test)
+
+    add_executable(musicrat_playback_preroll_test
+        tests/backends/playback_preroll_test.cpp)
+    target_include_directories(musicrat_playback_preroll_test
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/backends/audio")
+    target_link_libraries(musicrat_playback_preroll_test PRIVATE musicrat_core)
+    target_compile_options(musicrat_playback_preroll_test
+        PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
+    add_test(NAME musicrat.backends.playback_preroll
+        COMMAND musicrat_playback_preroll_test)
 
     if(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
         add_executable(musicrat_audio_output_backend_alsa_test
             tests/backends/audio_output_backend_alsa_test.cpp)
         target_link_libraries(musicrat_audio_output_backend_alsa_test
             PRIVATE musicrat_audio_device_backend)
+        target_compile_options(musicrat_audio_output_backend_alsa_test
+            PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
         add_test(NAME musicrat.backends.audio_output_alsa
             COMMAND musicrat_audio_output_backend_alsa_test)
+        set_tests_properties(musicrat.backends.audio_output_alsa PROPERTIES
+            ENVIRONMENT "ALSA_CONFIG_PATH=${PROJECT_SOURCE_DIR}/tests/fixtures/alsa_null.conf")
+        add_test(NAME musicrat.backends.audio_probe_null
+            COMMAND ${CMAKE_COMMAND} "-DPROBE=$<TARGET_FILE:musicrat_audio_output_probe>"
+                -DMODE=null -P "${PROJECT_SOURCE_DIR}/tests/integration/audio_output_probe_test.cmake")
+        set_tests_properties(musicrat.backends.audio_probe_null PROPERTIES
+            ENVIRONMENT "ALSA_CONFIG_PATH=${PROJECT_SOURCE_DIR}/tests/fixtures/alsa_null.conf"
+            TIMEOUT 10)
     endif()
 
     add_executable(musicrat_varispeed_renderer_test

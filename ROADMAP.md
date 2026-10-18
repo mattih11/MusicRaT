@@ -151,12 +151,45 @@ before implementing further DSP modules. The implementation remains generic,
 while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
 
-**Next implementation focus:** bring up the pinned Odroid H4 image on physical
-hardware. Boot the attended installer, launch an installed source -> processor
--> sink graph under EVL, validate LVGL DRM/KMS output, and record the board and
-display configuration. Then implement the target audio backend and measure its
-underrun, latency, and jitter behavior. RatGUI and live topology editing remain
-deferred until their runtime ownership contracts are defined.
+**Next implementation focus:** stabilize the working Odroid H4 gain/pan
+oscillator before extending the DSP toolbox. The physical display, touchscreen,
+and ALSA output now work with development binaries. Complete the reproducible
+release and sustained timing gates below; a successful temporary deployment is
+not qualification of a pinned release image. RatGUI and live topology editing
+remain deferred until their runtime ownership contracts are defined.
+
+### H4 Stabilization Milestone
+
+- [~] Land the audio timing and buffering fixes
+  - [x] Use CommRaT/CoreRaT absolute periodic deadlines instead of accumulating relative-sleep lateness
+  - [x] Add bounded playback pre-roll and starvation recovery for PipeWire and ALSA
+  - [x] Test deadline drift, bounded catch-up, pre-roll thresholds, and ALSA reopen behavior
+  - [ ] Commit and publish matching CommRaT and MusicRaT revisions
+- [ ] Produce a reproducible updated H4 image
+  - [ ] Require clean release worktrees and upstream-matching revisions before pinning RaTOS recipes
+  - [ ] Regenerate the SDK from the pinned dependency stack, including ALSA development files
+  - [ ] Cross-build with the regenerated SDK without local header or library overlays
+  - [ ] Build the pinned H4 image and verify the installed gain/pan demo after reboot
+- [~] Automate layered validation
+  - [~] Provide repeatable SDK cross-build and EVL runtime validation commands; complete pinned-SDK qualification remains
+  - [x] Run targeted SDK-built tests and the controlled oscillator graph under EVL QEMU
+  - [ ] Automate the QEMU boot/deploy/test/teardown sequence with explicit failure propagation
+  - [x] Add a bounded platform-clock playback probe with machine-readable health results, tested natively and on EVL QEMU/H4 with null PCM
+  - [ ] Run sustained H4 playback under CPU and I/O load, recording underruns, rejections, and failures
+  - [ ] Record queue occupancy and verify bounded long-duration behavior
+  - [~] Maintain a [hardware validation matrix](docs/HARDWARE_VALIDATION.md); development observations recorded, exact release-stack qualification pending
+- [ ] Resolve independent producer/device clocks before claiming sustained dropout resistance
+  - [ ] Specify a device-clocked pacing or bounded drift-correction contract, including overflow and starvation policy
+  - [ ] Test positive and negative clock skew, scheduler jitter, startup, and recovery
+  - [ ] Verify long-running queue occupancy stays bounded without hiding dropped or repeated samples
+- [ ] Complete the H4 display feedback loop
+  - [ ] Add live peak/RMS/clipping meters to the gain/pan screen
+  - [ ] Route authoritative gain and pan state back to widgets, including changes from a second control source
+  - [ ] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
+- [ ] Extend the processing channel after the stabilization gates
+  - [ ] Compose the configurable channel strip from existing mapper, gain, and panner kernels
+  - [ ] Add DC blocking, then stable biquads/filters and parametric EQ
+  - [ ] Follow with compressor/limiter and mixer metering
 
 - [~] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
   - [x] Add schema-versioned stable IDs and labels for physical module ports
@@ -202,14 +235,14 @@ deferred until their runtime ownership contracts are defined.
   - [~] Connect the LVGL thread to platform display drivers
     - [x] Add an SDL2 desktop window backend for local surface preview
     - [x] Add direct DRM/KMS and legacy fbdev backends for console-only Linux
-    - [ ] Later validate DRM/KMS output on a physical target and record the supported image/device
+    - [~] Physical H4 DRM/KMS output works; record exact display/image identity and qualify the pinned image
   - [x] Materialize one LVGL sink per observed display during strict export
   - [x] Add a bounded widget-update merger for multiple observation adapter streams
   - [x] Expand the LVGL renderer to the Designer's supported display-widget catalog
     - [x] Render meter, toggle, text, slider, knob, and button widgets
     - [x] Render fader and choice widgets
   - [x] Emit semantic control/action events from configured interactive on-screen widgets
-  - [ ] Add touchscreen pointer input only when a deployed display requires it
+  - [~] H4 touchscreen gain/pan interaction works; qualify input on the updated pinned image
   - [ ] Subscribe and render widget updates in RatGUI
 - [~] Extend project validation and round-trip persistence for bindings and presentation state
   - [x] Validate and preserve devices, endpoints, parameter/action/observation bindings, transforms, surfaces, and widgets
@@ -461,6 +494,8 @@ RatGUI has audio-device status and settings surfaces that can consume them.
 - [ ] Audio input source
 - [ ] Full-duplex operation
 - [x] Bounded buffering between CommRaT scheduling and the device callback
+- [x] Bounded playback pre-roll and post-starvation rebuffering using the negotiated device period
+- [ ] Synchronize periodic audio production with the device clock or implement explicit bounded drift correction
 - [~] Underrun/overrun detection and counters; callback, missing-frame, and stream-failure counters are implemented while published telemetry remains
 - [~] Device hot-plug and sample-rate/block-size change handling; PipeWire-managed reconnect drops stale queued audio, while physical reconnect validation and format changes remain
 - [~] WAV file I/O for deterministic tests and offline rendering
@@ -482,7 +517,7 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
   - [x] Add an optional LVGL 9 widget renderer with headless object-level validation
   - [x] Add a bounded SPSC handoff from message callbacks to the LVGL thread
   - [x] Add SDL2, DRM/KMS, and fbdev display drivers and connect the CommRaT subscriber
-  - [ ] Validate DRM/KMS and input on the physical H4 target
+  - [~] DRM/KMS and touchscreen gain/pan interaction verified on H4 with development audio binaries; pinned-image qualification remains
 - [x] Implement shared renderer-neutral surface loading and capability validation
 - [ ] Define bounded UI snapshot messages and configurable publication rates
 - [ ] Module browser with lifecycle and health state
@@ -541,6 +576,7 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
 - [x] Build an Odroid H4 image and attended installer from pinned upstream revisions
 - [ ] Boot-test installed MusicRaT examples without source-tree or build-tree dependencies
 - [ ] Add physical-target audio stress tests for underruns, worst-case processing time, latency, and jitter
+  - [ ] Include sustained playback under CPU and I/O load and independent producer/device clock skew
 - [ ] Publish a compatibility matrix keyed by MusicRaT, CommRaT, RaTOS, kernel, board, and audio backend versions
 
 ### Performance
@@ -610,7 +646,7 @@ Record decisions here before their dependent phase begins.
 | Internal sample type | CMake-selected `float` or `double`; default `float` | Decided |
 | Channel storage | Planar fixed-capacity block | Decided |
 | Audio capacities | CMake-generated application-wide constants | Decided |
-| Scheduling model | Fixed-size processing quantum synchronized to the audio device | Open |
+| Scheduling model | Absolute platform-clock module deadlines implemented; device-clocked pacing versus bounded drift correction still to be specified | Open |
 | Media decode boundary | In-band decoder worker feeding preallocated PCM chunks to the real-time renderer | Decided |
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
 | Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |

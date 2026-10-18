@@ -129,12 +129,30 @@ configurations above eight channels are rejected until an explicit layout
 contract exists. Device discovery,
 published counter telemetry, and hot-plug recovery remain pending.
 
+Playback starts after a bounded pre-roll of twice the larger of the configured
+producer period and the device's callback/period size, capped to leave room for
+one maximum-sized incoming block in the queue. PipeWire emits silence without
+consuming queued samples during initial pre-roll. After starvation, it rebuilds
+the same reserve before resuming; silence after playback has started remains
+visible in the underrun counters. This absorbs bounded scheduling jitter; it
+does not synchronize independent producer and hardware clocks or conceal
+sustained rate mismatches.
+
 The ALSA implementation opens the configured PCM directly, defaulting to
 `default`, and requests interleaved PCM16. Its preallocated bounded SPSC queue
 keeps all ALSA calls on a dedicated worker thread; the CommRaT producer only
 validates, converts, copies, and publishes complete blocks. Queue overflow
 rejects the complete incoming block. ALSA underruns and unrecoverable stream
 failures are exposed through the same counters as the PipeWire backend.
+Pre-roll includes ALSA's negotiated device buffer plus the reserve calculated
+from its negotiated period rather than assuming the requested period was
+accepted, subject to the same queue cap. It is repeated after an ALSA underrun.
+
+Module cadence uses the CommRaT/CoreRaT `Time` abstraction and absolute periodic
+deadlines, so wake-up lateness does not accumulate on every block. EVL producers
+must run on platform-managed, EVL-attached threads. The ALSA worker deliberately
+remains an in-band standard thread: ordinary ALSA calls are not OOB-safe, and
+changing that worker to an EVL thread would not make the PCM path real-time.
 
 Run the host example after building with PipeWire support:
 

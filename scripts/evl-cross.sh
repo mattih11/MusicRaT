@@ -5,17 +5,19 @@ set -euo pipefail
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd -- "${script_dir}/.." && pwd)
 sdk_source=${1:-${EVL_SDK_DIR:-}}
+if [[ $# -gt 0 ]]; then
+    shift
+fi
 
 if [[ -z "${sdk_source}" ]]; then
-    echo "Usage: $0 <SDK directory or .tar.xz archive>" >&2
+    echo "Usage: $0 <SDK directory or .tar.xz archive> [CMake configure options...]" >&2
     exit 2
 fi
 
 sdk_source=$(realpath "${sdk_source}")
 if [[ -f "${sdk_source}" ]]; then
-    sdk_dir="${repo_dir}/.evl-cache/sdk"
-    rm -rf "${sdk_dir}"
-    mkdir -p "${sdk_dir}"
+    mkdir -p "${repo_dir}/.evl-cache"
+    sdk_dir=$(mktemp -d "${repo_dir}/.evl-cache/sdk.XXXXXX")
     tar -xJf "${sdk_source}" -C "${sdk_dir}" --strip-components=1 \
         --exclude='*/dev/*'
 elif [[ -d "${sdk_source}" ]]; then
@@ -35,6 +37,8 @@ if [[ -x "${sdk_dir}/relocate-sdk.sh" ]]; then
 fi
 
 export EVL_SDK_DIR=${sdk_dir}
+export PKG_CONFIG_SYSROOT_DIR=${sdk_dir}
+export PKG_CONFIG_LIBDIR="${sdk_dir}/usr/lib/x86_64-linux-gnu/pkgconfig:${sdk_dir}/usr/lib/pkgconfig:${sdk_dir}/usr/share/pkgconfig"
 cd "${repo_dir}"
-cmake --fresh --preset evl-cross
+cmake --fresh --preset evl-cross "$@"
 cmake --build --preset evl-cross --parallel "${MUSICRAT_BUILD_JOBS:-4}"

@@ -156,6 +156,67 @@ MusicRaT CI should grow in this order:
 
 EVL cross-build and QEMU failures block changes that affect runtime code. Physical tests gate supported-hardware and real-time performance claims rather than routine DSP-only development.
 
+## Repeatable Audio Validation
+
+Cross-build the ALSA backend and its validation tools from a complete pinned SDK:
+
+```bash
+bash scripts/evl-cross.sh /absolute/path/to/sdk \
+  -DBUILD_TESTING=ON -DMUSICRAT_AUDIO_BACKEND=ALSA
+```
+
+Additional arguments are passed to CMake after the preset defaults. Target
+pkg-config discovery is restricted to the SDK, so a missing target ALSA package
+fails configuration rather than silently using host libraries. Archive inputs
+are extracted into a fresh cache directory without replacing an existing SDK.
+The default preset still builds the headless `NONE` backend unless overridden.
+
+For targeted native validation, configure an ALSA build with `BUILD_TESTING=ON`,
+build `musicrat_audio_output_probe`, `musicrat_playback_preroll_test`,
+`musicrat_audio_output_backend_alsa_test`, and `musicrat_audio_device_sink_test`,
+then run:
+
+```bash
+bash scripts/validate-audio-runtime.sh std build-alsa-validation \
+  tests/fixtures/alsa_null.conf
+```
+
+For an already booted EVL QEMU guest, copy those four SDK-built executables,
+`scripts/validate-audio-runtime.sh`, and `tests/fixtures/alsa_null.conf` to a
+separate guest directory and run the same script with `evl` instead of `std`.
+Provide the matching target runtime libraries through the image/package, not
+host libraries. The script checks upstream EVL timing/thread sanity tests,
+prints executable checksums and kernel identity, runs the deterministic
+regressions, and checks that the probe was compiled for the requested platform.
+It fails on any failed command. QEMU boot/deploy/teardown orchestration and the
+controlled graph smoke test are separate remaining automation work.
+
+The null PCM requires no physical audio device and proves neither hardware
+pacing nor audio performance. For an attended physical test, first ensure no
+other graph owns the selected PCM, then run, for example:
+
+```bash
+./build/evl-cross/musicrat_audio_output_probe \
+  --device plughw:0,0 --sample-rate 48000 --channels 2 \
+  --period-frames 480 --blocks 3000 --jitter-ms 16 --jitter-every 37
+```
+
+This emits a quiet 440 Hz sine and a JSON health result. The producer uses
+CoreRaT absolute deadlines on a platform-managed thread; EVL attachment failure
+is fatal. Format and jitter options are validated before opening the device.
+The probe stops after the requested block count and drops any final queued
+pre-roll when closing; it is not an end-of-stream drain test. A nonzero exit
+status means invalid input, backend/producer failure, rejected blocks, or
+underruns. Producer lateness includes deliberately injected jitter and is not
+hardware latency. Record negotiated PCM geometry separately from requested
+values, for example from `/proc/asound/card*/pcm*p/sub*/hw_params` while running.
+
+Do not interrupt a live demo for automated testing without approval. CPU/I/O
+stress, queue-occupancy/skew measurement, installed-image validation, and
+hardware latency measurements remain explicit gates in the
+[roadmap](../ROADMAP.md). Record results and qualification limits in the
+[hardware validation matrix](HARDWARE_VALIDATION.md).
+
 ## Release Image Pinning
 
 Build a release-candidate RaTOS image only after the dependency changes are

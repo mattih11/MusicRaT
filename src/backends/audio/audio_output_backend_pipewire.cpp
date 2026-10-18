@@ -2,6 +2,8 @@
 
 #include <musicrat/config.hpp>
 
+#include "playback_preroll.hpp"
+
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
 #include <spa/param/audio/raw.h>
@@ -70,7 +72,8 @@ public:
         if (config.sample_rate_hz == 0 || config.channel_count == 0
             || config.channel_count > config::max_audio_channels
             || config.channel_count > 8
-            || config.period_frames == 0) {
+            || config.period_frames == 0
+            || config.period_frames > config::max_audio_frames) {
             return false;
         }
 
@@ -80,7 +83,8 @@ public:
         channel_count_ = config.channel_count;
         read_position_.store(0, std::memory_order_relaxed);
         write_position_.store(0, std::memory_order_relaxed);
-        started_.store(false, std::memory_order_relaxed);
+        preroll_.reset(
+            config.period_frames, queue_capacity_frames - config::max_audio_frames);
         underruns_.store(0, std::memory_order_relaxed);
         underrun_frames_.store(0, std::memory_order_relaxed);
         stream_failures_.store(0, std::memory_order_relaxed);
@@ -212,7 +216,6 @@ public:
         }
         write_position_.store(
             write_position + block.frame_count, std::memory_order_release);
-        started_.store(true, std::memory_order_release);
         return true;
     }
 
@@ -258,7 +261,6 @@ private:
                 std::memory_order_acquire);
             backend->read_position_.store(
                 write_position, std::memory_order_release);
-            backend->started_.store(false, std::memory_order_release);
         }
         if (backend->loop_ != nullptr) {
             pw_thread_loop_signal(backend->loop_, false);
@@ -290,8 +292,11 @@ private:
             read_position_.load(std::memory_order_relaxed);
         const uint64_t write_position =
             write_position_.load(std::memory_order_acquire);
-        const uint32_t available_frames = static_cast<uint32_t>(
-            std::min<uint64_t>(write_position - read_position, requested_frames));
+        const uint32_t available_frames = preroll_.ready(
+            write_position - read_position, requested_frames)
+            ? static_cast<uint32_t>(std::min<uint64_t>(
+                write_position - read_position, requested_frames))
+            : 0;
 
         for (uint32_t frame = 0; frame < available_frames; ++frame) {
             const std::size_t queue_frame = static_cast<std::size_t>(
@@ -307,12 +312,13 @@ private:
                 0,
                 static_cast<std::size_t>(requested_frames - available_frames)
                     * stride);
-            if (started_.load(std::memory_order_acquire)) {
+            if (preroll_.started()) {
                 underruns_.fetch_add(1, std::memory_order_relaxed);
                 underrun_frames_.fetch_add(
                     requested_frames - available_frames,
                     std::memory_order_relaxed);
             }
+            preroll_.rebuffer();
         }
 
         read_position_.store(
@@ -339,7 +345,7 @@ private:
     std::atomic<uint64_t> underruns_{0};
     std::atomic<uint64_t> underrun_frames_{0};
     std::atomic<uint64_t> stream_failures_{0};
-    std::atomic<bool> started_{false};
+    detail::PlaybackPreroll preroll_;
     std::atomic<bool> open_{false};
     std::atomic<pw_stream_state> state_{PW_STREAM_STATE_UNCONNECTED};
     pw_thread_loop* loop_{nullptr};

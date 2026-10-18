@@ -2,6 +2,8 @@
 
 #include <musicrat/config.hpp>
 
+#include "playback_preroll.hpp"
+
 #include <alsa/asoundlib.h>
 
 #include <algorithm>
@@ -66,8 +68,21 @@ public:
             return false;
         }
 
+        snd_pcm_uframes_t buffer_frames = 0;
+        snd_pcm_uframes_t device_period_frames = 0;
+        if (snd_pcm_get_params(pcm_, &buffer_frames, &device_period_frames) < 0
+            || device_period_frames == 0
+            || device_period_frames > queue_capacity_frames / 2) {
+            snd_pcm_close(pcm_);
+            pcm_ = nullptr;
+            return false;
+        }
+
         channel_count_ = config.channel_count;
-        period_frames_ = config.period_frames;
+        period_frames_ = static_cast<uint32_t>(device_period_frames);
+        preroll_.reset(
+            config.period_frames, queue_capacity_frames - config::max_audio_frames,
+            buffer_frames);
         read_position_.store(0, std::memory_order_relaxed);
         write_position_.store(0, std::memory_order_relaxed);
         underruns_.store(0, std::memory_order_relaxed);
@@ -160,7 +175,8 @@ private:
             const uint32_t available_frames = static_cast<uint32_t>(
                 std::min<uint64_t>(
                     write_position - read_position, config::max_audio_frames));
-            if (available_frames == 0) {
+            if (available_frames == 0
+                || !preroll_.ready(write_position - read_position, period_frames_)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds{1});
                 continue;
             }
@@ -191,6 +207,7 @@ private:
                 underruns_.fetch_add(1, std::memory_order_relaxed);
                 underrun_frames_.fetch_add(
                     period_frames_, std::memory_order_relaxed);
+                preroll_.rebuffer();
             }
             if (snd_pcm_recover(pcm_, static_cast<int>(written), 1) < 0) {
                 stream_failures_.fetch_add(1, std::memory_order_relaxed);
@@ -210,6 +227,7 @@ private:
     std::atomic<bool> stopping_{true};
     std::atomic<bool> open_{false};
     std::thread worker_;
+    detail::PlaybackPreroll preroll_;
     snd_pcm_t* pcm_{nullptr};
     uint32_t period_frames_{0};
     uint16_t channel_count_{0};
