@@ -33,6 +33,48 @@
           "display_name": "Pan",
           "layout": { "x": 58, "y": 30, "width": 30, "height": 40 },
           "route": "control"
+        },
+        {
+          "id": "peak-label",
+          "kind": "text",
+          "display_name": "PEAK",
+          "layout": { "x": 8, "y": 77, "width": 11, "height": 7 },
+          "route": "feedback"
+        },
+        {
+          "id": "peak-meter",
+          "kind": "meter",
+          "display_name": "Peak",
+          "layout": { "x": 21, "y": 78, "width": 52, "height": 5 },
+          "route": "feedback"
+        },
+        {
+          "id": "rms-label",
+          "kind": "text",
+          "display_name": "RMS",
+          "layout": { "x": 8, "y": 87, "width": 11, "height": 7 },
+          "route": "feedback"
+        },
+        {
+          "id": "rms-meter",
+          "kind": "meter",
+          "display_name": "RMS",
+          "layout": { "x": 21, "y": 88, "width": 52, "height": 5 },
+          "route": "feedback"
+        },
+        {
+          "id": "clip-label",
+          "kind": "text",
+          "display_name": "CLIP",
+          "layout": { "x": 78, "y": 78, "width": 16, "height": 7 },
+          "route": "feedback"
+        },
+        {
+          "id": "clip-indicator",
+          "kind": "toggle",
+          "display_name": "Clip",
+          "layout": { "x": 81, "y": 88, "width": 10, "height": 8 },
+          "route": "feedback"
         }
       ]
     }

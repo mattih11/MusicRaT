@@ -387,16 +387,26 @@ discontinuities.
 During subsequent operation, the operator also reported audible artifacts when
 moving either the gain or pan slider quickly. The live demo config used
 64-sample ramps (about 1.3 ms at 48 kHz). Both demo config sources now use
-480-sample ramps (10 ms at 48 kHz) for the next listening check; this setting
-has not been deployed to the H4.
+480-sample ramps (10 ms at 48 kHz); this setting was tested from a temporary
+runtime config and has not been written to the installed H4 image.
 
 On 2026-10-19, the H4 demo was restarted with a temporary copy of its installed
-config, changing only the gain and pan smoothing values to 480 samples. The
-operator quickly moved both controls and reported both sounded clean or clearly
-improved. The demo remains active on confirmed slot B with ALSA PCM `RUNNING`;
-the temporary runtime config is under `/tmp`, and no image or installed config
-was changed. This is a single subjective listening check, not a claim that all
-possible control-motion artifacts are eliminated.
+config, changing only the gain and pan smoothing values to 480 samples. In two
+quick listening checks, the operator moved both controls and reported them
+clean or clearly improved. The demo remains active on confirmed slot B with
+ALSA PCM `RUNNING`; the temporary runtime config is under `/tmp`, and no image
+or installed config was changed. The operator considers gain and pan movement
+solved for now; this is subjective evidence and not a guarantee for every
+possible control motion.
+
+The gain/pan screen was then extended with peak, RMS, and clipping widgets,
+using the existing level-meter and widget-update modules. The first temporary
+launch used the installed, older LVGL manifest, so the new widgets were absent.
+After staging the updated manifest under `/tmp` and restarting the graph, the
+operator confirmed the peak and RMS bars were visible and moving with the audio,
+and the clipping indicator was visible. The meter-enabled graph remains active
+on confirmed slot B with ALSA PCM `RUNNING`; its config and manifest are
+temporary files, and the installed image and config remain unchanged.
 
 ## Qualification Still Required
 
@@ -407,9 +417,6 @@ possible control-motion artifacts are eliminated.
 - Evolve the simple oscillator into a synth voice with note input and an
   integrated ADSR envelope, then repeat the cold-start listening check; the
   intermittent demo onset click remains unresolved.
-- Listen for rapid gain/pan slider artifacts with the 10 ms demo ramps on the
-  H4 under longer use before deciding whether further smoothing changes are
-  needed.
 - Measure physical end-to-end latency and jitter with documented methods.
 - Test disconnect/reconnect and orderly shutdown/restart.
 

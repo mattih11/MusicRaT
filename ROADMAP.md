@@ -189,7 +189,7 @@ remain deferred until their runtime ownership contracts are defined.
   - [x] Test positive and negative 100 ppm producer offsets for five minutes each on H4; zero queue rejects or underruns
   - [~] Verify bounded long-duration queue occupancy and correction behavior without hiding dropped or repeated samples
 - [ ] Complete the H4 display feedback loop
-  - [ ] Add live peak/RMS/clipping meters to the gain/pan screen
+  - [x] Add live peak/RMS/clipping meters to the gain/pan screen
   - [ ] Route authoritative gain and pan state back to widgets, including changes from a second control source
   - [ ] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
 - [ ] Extend the processing channel after the stabilization gates

@@ -1208,12 +1208,18 @@ if(BUILD_TESTING)
                     "${PROJECT_BINARY_DIR}/multi_display_level_meter_to_lvgl.json"
                     --duration-ms 300
             )
-                    add_test(
-                    NAME musicrat.integration.interactive_dual_gain
-                    COMMAND musicrat_launcher
-                        "${PROJECT_BINARY_DIR}/interactive_dual_gain.json"
-                        --duration-ms 300
-                    )
+            add_test(
+                NAME musicrat.integration.interactive_dual_gain
+                COMMAND musicrat_launcher
+                    "${PROJECT_BINARY_DIR}/interactive_dual_gain.json"
+                    --duration-ms 300
+            )
+            add_test(
+                NAME musicrat.integration.interactive_gain_pan
+                COMMAND musicrat_launcher
+                    "${PROJECT_BINARY_DIR}/interactive_gain_pan.json"
+                    --duration-ms 300
+            )
         endif()
 
         add_executable(musicrat_tone_to_wav_test
@@ -1363,6 +1369,7 @@ if(BUILD_TESTING)
             set_tests_properties(
                 musicrat.integration.level_meter_to_lvgl
                 musicrat.integration.multi_display_level_meter_to_lvgl
+                musicrat.integration.interactive_gain_pan
                 PROPERTIES
                     FIXTURES_REQUIRED musicrat_tcp_router
                     RESOURCE_LOCK musicrat_tcp_router)

@@ -31,10 +31,20 @@
       }
     },
     {
+      "name": "LevelMeter_1",
+      "module_class": "MusicRaTLevelMeter",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 1 }
+      ],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": { "clipping_threshold": 1.0 }
+    },
+    {
       "name": "StereoPanner_1",
       "module_class": "MusicRaTStereoPanner",
       "outputs": [{ "system_id": 10, "instance_id": 3 }],
-      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }],
       "params": {
         "pan": 0.0,
         "pan_law": 1,
@@ -115,7 +125,23 @@
         ]
       }
     ],
-    "observation_bindings": [],
+    "observation_bindings": [
+      {
+        "id": "peak-observation",
+        "source": { "module_id": "LevelMeter_1", "observable_id": "peak", "channel": 0 },
+        "target": { "surface_id": "display-channel-strip", "widget_id": "peak-meter", "property": "value" }
+      },
+      {
+        "id": "rms-observation",
+        "source": { "module_id": "LevelMeter_1", "observable_id": "rms", "channel": 0 },
+        "target": { "surface_id": "display-channel-strip", "widget_id": "rms-meter", "property": "value" }
+      },
+      {
+        "id": "clip-observation",
+        "source": { "module_id": "LevelMeter_1", "observable_id": "clipped", "channel": 0 },
+        "target": { "surface_id": "display-channel-strip", "widget_id": "clip-indicator", "property": "active" }
+      }
+    ],
     "deck": {
       "schema_version": 1,
       "panel": { "width_mm": 180, "height_mm": 108, "thickness_mm": 3 },
