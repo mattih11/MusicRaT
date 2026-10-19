@@ -4,6 +4,7 @@
 #include <corerat/platform/threading.hpp>
 #include <corerat/platform/timestamp.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -129,6 +130,10 @@ int run(int argc, char** argv) {
         const uint64_t period_ns =
             (nominal_period_ns * 1'000'000ULL + rate_scale / 2) / rate_scale;
         double phase = 0;
+        const uint64_t fade_frames =
+            static_cast<uint64_t>(options.rate) * 20 / 1000;
+        const uint64_t total_frames =
+            static_cast<uint64_t>(options.blocks) * options.frames;
         for (uint32_t index = 0; index < options.blocks; ++index) {
             const auto deadline = start + static_cast<uint64_t>(index) * period_ns;
             corerat::Time::sleep_until(deadline);
@@ -142,8 +147,17 @@ int run(int argc, char** argv) {
             block.timestamp_ns = now;
             block.sequence_number = index;
             for (uint32_t frame = 0; frame < options.frames; ++frame) {
+                const uint64_t stream_frame =
+                    static_cast<uint64_t>(index) * options.frames + frame;
+                const uint64_t frames_to_end =
+                    total_frames - stream_frame - 1;
+                const double envelope = std::min(
+                    1.0,
+                    static_cast<double>(std::min(stream_frame, frames_to_end))
+                        / std::max<uint64_t>(fade_frames, 1));
                 const auto sample = static_cast<musicrat::config::sample_type>(
-                    0.05 * std::sin(phase * 6.283185307179586));
+                    0.05 * envelope
+                    * std::sin(phase * 6.283185307179586));
                 phase += 440.0 / options.rate;
                 phase -= std::floor(phase);
                 for (uint32_t channel = 0; channel < options.channels; ++channel) {

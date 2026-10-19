@@ -358,14 +358,33 @@ The probe was removed and the gain/pan demo restarted on confirmed slot B. The
 launcher and sink are active, PCM is `RUNNING`, the EVL router is active, and
 there are no failed systemd units.
 
+## Listening Check (2026-10-19)
+
+The operator approved three 30-second probe segments: nominal cadence, +100 ppm,
+and -100 ppm. Each produced 3,000 blocks at 48 kHz stereo, 480 frames per
+block. All three reported zero rejected blocks, underruns, missing frames, or
+stream failures. The +100 ppm segment was heard as clean and steady. The
+operator could not listen to the nominal segment. The -100 ppm segment was
+heard as steady except for one click shortly after tone onset.
+
+To distinguish a startup transient from a repeatable in-stream click, the
+probe was updated with 20 ms linear fades at the beginning and end and the
+-100 ppm segment was repeated. That run reported zero playback errors,
+1,920-frame queue high-water, 1,374 end frames, and maximum absolute
+correction 337 ppm. The operator reported the faded repeat sounded clean and
+steady. This is encouraging subjective evidence for the faded test tone, but
+does not prove the original click was a one-off or qualify every startup path
+or the unmodified interactive demo. The gain/pan demo was restarted after the
+test and its PCM is `RUNNING`.
+
 ## Qualification Still Required
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was
   made, so establish an attended recovery plan first.
 - Verify queue occupancy over multi-hour operation and more extreme clock
   offsets.
-- Validate subjective audio quality during adaptive correction and transition
-  back to nominal producer rate.
+- Repeat subjective checks of the live oscillator through correction changes
+  and repeated cold starts, watching specifically for onset clicks.
 - Measure physical end-to-end latency and jitter with documented methods.
 - Test disconnect/reconnect and orderly shutdown/restart.
 

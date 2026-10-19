@@ -207,7 +207,8 @@ For controlled positive/negative producer clock-offset experiments, add
 This changes only the probe producer's absolute block deadline interval; the
 audio device remains on its own clock. The JSON reports the requested offset.
 
-This emits a quiet 440 Hz sine and a JSON health result. The producer uses
+This emits a quiet 440 Hz sine with 20 ms linear start/end fades and a JSON
+health result. The producer uses
 CoreRaT absolute deadlines on a platform-managed thread; EVL attachment failure
 is fatal. Format and jitter options are validated before opening the device.
 The result includes `queued_frames_at_end`, the ring depth sampled after the
