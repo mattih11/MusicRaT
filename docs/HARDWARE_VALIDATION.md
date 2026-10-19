@@ -98,6 +98,13 @@ rebooted; its temporary interactive demo remained running.
 
 ## Qualification Still Required
 
+- MusicRaT A/B SWUpdate and attended-installer integration now passes
+  development EFI QEMU tests, including signed slot updates, confirmation,
+  watchdog-triggered rollback, persistent state, and installation/update on a
+  disposable virtual NVMe. The RaTOS deployment guide records artifact hashes
+  and test limits. The tested artifacts were built from a dirty development
+  worktree; clean release artifact builds, deployment-owned signing
+  credentials, and physical H4 qualification remain separate gates.
 - Deployment of the rebuilt pinned H4 image, reboot, and an installed gain/pan demo without
   temporary deployment directories or source/build-tree dependencies.
 - Recorded display connector/model and touchscreen identity.

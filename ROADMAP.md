@@ -170,6 +170,8 @@ remain deferred until their runtime ownership contracts are defined.
   - [x] Regenerate the SDK from the pinned dependency stack, including ALSA development files
   - [x] Cross-build with the regenerated SDK without local header or library overlays
   - [x] Build the pinned H4 image and smoke-test its installed oscillator graph in EVL QEMU
+  - [x] Prepare a MusicRaT A/B SWUpdate image and signed bundle; test update, confirmation, and watchdog-triggered rollback through EFI Boot Guard in QEMU
+  - [x] Make the attended installer stick flash the A/B-compatible MusicRaT image; validate installation, EFI boot, and SWUpdate onto a disposable QEMU NVMe disk
   - [ ] Deploy the pinned H4 image and verify the installed gain/pan demo after reboot
 - [~] Automate layered validation
   - [x] Provide repeatable SDK cross-build and EVL runtime validation commands; verify the regenerated pinned SDK without development overlays
