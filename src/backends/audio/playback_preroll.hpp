@@ -19,14 +19,20 @@ public:
 
     [[nodiscard]] bool ready(
         uint64_t queued_frames, uint64_t consumer_frames) noexcept {
-        const uint64_t target = std::min(
-            maximum_prefill_,
-            device_buffer_ + 2 * std::max<uint64_t>(producer_period_, consumer_frames));
+        const uint64_t target = target_frames(consumer_frames);
         if (!running_ && queued_frames >= target) {
             running_ = true;
             started_ = true;
         }
         return running_;
+    }
+
+    [[nodiscard]] uint64_t target_frames(
+        uint64_t consumer_frames) const noexcept {
+        return std::min(
+            maximum_prefill_,
+            device_buffer_
+                + 2 * std::max<uint64_t>(producer_period_, consumer_frames));
     }
 
     void rebuffer() noexcept {

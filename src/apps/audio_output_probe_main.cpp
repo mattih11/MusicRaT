@@ -24,6 +24,7 @@ struct Options {
     uint32_t blocks{3000};
     uint32_t jitter_ms{0};
     uint32_t jitter_every{37};
+    int32_t clock_offset_ppm{0};
 };
 
 bool parse(int argc, char** argv, Options& options) {
@@ -45,6 +46,18 @@ bool parse(int argc, char** argv, Options& options) {
         else if (key == "--blocks") target = &options.blocks;
         else if (key == "--jitter-ms") target = &options.jitter_ms;
         else if (key == "--jitter-every") target = &options.jitter_every;
+        else if (key == "--clock-offset-ppm") {
+            const auto result = std::from_chars(
+                value.data(), value.data() + value.size(),
+                options.clock_offset_ppm);
+            if (result.ec != std::errc{}
+                || result.ptr != value.data() + value.size()) {
+                std::fprintf(stderr, "Invalid signed integer for %.*s\n",
+                    static_cast<int>(key.size()), key.data());
+                return false;
+            }
+            continue;
+        }
         else {
             std::fprintf(stderr, "Unknown option: %.*s\n", static_cast<int>(key.size()), key.data());
             return false;
@@ -62,7 +75,9 @@ bool parse(int argc, char** argv, Options& options) {
         || options.channels > musicrat::config::max_audio_channels
         || options.channels > std::numeric_limits<uint16_t>::max()
         || options.blocks == 0 || options.jitter_every == 0
-        || options.jitter_ms > 1000) {
+        || options.jitter_ms > 1000
+        || options.clock_offset_ppm < -1000
+        || options.clock_offset_ppm > 1000) {
         std::fprintf(stderr, "Invalid format, block count, or jitter (maximum 1000 ms)\n");
         return false;
     }
@@ -106,9 +121,13 @@ int run(int argc, char** argv) {
         }
 #endif
         const auto start = corerat::Time::now();
-        const uint64_t period_ns =
+        const uint64_t nominal_period_ns =
             (static_cast<uint64_t>(options.frames) * 1'000'000'000ULL + options.rate / 2)
             / options.rate;
+        const uint64_t rate_scale = static_cast<uint64_t>(
+            static_cast<int64_t>(1'000'000) + options.clock_offset_ppm);
+        const uint64_t period_ns =
+            (nominal_period_ns * 1'000'000ULL + rate_scale / 2) / rate_scale;
         double phase = 0;
         for (uint32_t index = 0; index < options.blocks; ++index) {
             const auto deadline = start + static_cast<uint64_t>(index) * period_ns;
@@ -144,6 +163,12 @@ int run(int argc, char** argv) {
     const auto underruns = backend->underrun_count();
     const auto missing_frames = backend->underrun_frame_count();
     const auto failures = backend->stream_failure_count();
+    const auto queued_frames = backend->queued_frames();
+    const auto queue_high_water_frames = backend->queue_high_water_frames();
+    const auto queue_capacity_frames = backend->queue_capacity();
+    const auto rate_correction_ppm = backend->rate_correction_ppm();
+    const auto maximum_rate_correction_ppm =
+        backend->maximum_rate_correction_ppm();
     backend->close();
     if (!attached) {
         std::fprintf(stderr, "Producer thread failed EVL attachment\n");
@@ -157,18 +182,32 @@ int run(int argc, char** argv) {
     std::printf(
         "{\"backend\":\"%s\",\"platform\":\"%s\",\"sample_rate_hz\":%u,"
         "\"channels\":%u,\"period_frames\":%u,\"blocks\":%u,"
-        "\"jitter_ms\":%u,\"jitter_every\":%u,\"elapsed_ns\":%llu,"
+        "\"jitter_ms\":%u,\"jitter_every\":%u,\"clock_offset_ppm\":%d,"
+        "\"elapsed_ns\":%llu,"
         "\"maximum_producer_lateness_ns\":%llu,\"rejected_blocks\":%llu,"
-        "\"underruns\":%llu,\"missing_frames\":%llu,\"stream_failures\":%llu}\n",
+        "\"underruns\":%llu,\"missing_frames\":%llu,\"stream_failures\":%llu,"
+        "\"queued_frames_at_end\":%llu,\"queue_high_water_frames\":%llu,"
+        "\"queue_capacity_frames\":%llu,\"current_rate_correction_ppm\":%d,"
+        "\"maximum_rate_correction_ppm\":%u}\n",
         backend->name(), platform, options.rate, options.channels, options.frames,
         options.blocks, options.jitter_ms, options.jitter_every,
+        static_cast<int>(options.clock_offset_ppm),
         static_cast<unsigned long long>(elapsed_ns),
         static_cast<unsigned long long>(maximum_lateness_ns),
         static_cast<unsigned long long>(rejected),
         static_cast<unsigned long long>(underruns),
         static_cast<unsigned long long>(missing_frames),
-        static_cast<unsigned long long>(failures));
-    return rejected == 0 && underruns == 0 && missing_frames == 0 && failures == 0 ? 0 : 1;
+        static_cast<unsigned long long>(failures),
+        static_cast<unsigned long long>(queued_frames),
+        static_cast<unsigned long long>(queue_high_water_frames),
+        static_cast<unsigned long long>(queue_capacity_frames),
+        static_cast<int>(rate_correction_ppm),
+        static_cast<unsigned>(maximum_rate_correction_ppm));
+    return rejected == 0 && underruns == 0 && missing_frames == 0 && failures == 0
+            && queued_frames <= queue_capacity_frames
+            && queue_high_water_frames <= queue_capacity_frames
+        ? 0
+        : 1;
 }
 
 } // namespace

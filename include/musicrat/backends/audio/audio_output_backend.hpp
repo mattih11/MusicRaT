@@ -26,6 +26,11 @@ public:
     [[nodiscard]] virtual uint64_t underrun_count() const noexcept = 0;
     [[nodiscard]] virtual uint64_t underrun_frame_count() const noexcept = 0;
     [[nodiscard]] virtual uint64_t stream_failure_count() const noexcept = 0;
+    [[nodiscard]] virtual uint64_t queued_frames() const noexcept = 0;
+    [[nodiscard]] virtual uint64_t queue_high_water_frames() const noexcept = 0;
+    [[nodiscard]] virtual uint64_t queue_capacity() const noexcept = 0;
+    [[nodiscard]] virtual int32_t rate_correction_ppm() const noexcept = 0;
+    [[nodiscard]] virtual uint32_t maximum_rate_correction_ppm() const noexcept = 0;
 };
 
 [[nodiscard]] std::unique_ptr<AudioOutputBackend>

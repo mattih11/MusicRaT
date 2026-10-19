@@ -172,19 +172,22 @@ remain deferred until their runtime ownership contracts are defined.
   - [x] Build the pinned H4 image and smoke-test its installed oscillator graph in EVL QEMU
   - [x] Prepare a MusicRaT A/B SWUpdate image and signed bundle; test update, confirmation, and watchdog-triggered rollback through EFI Boot Guard in QEMU
   - [x] Make the attended installer stick flash the A/B-compatible MusicRaT image; validate installation, EFI boot, and SWUpdate onto a disposable QEMU NVMe disk
-  - [ ] Deploy the pinned H4 image and verify the installed gain/pan demo after reboot
+  - [x] Rebuild A/B artifacts from clean published RaTOS; verify installer payload identity, signing, and EFI factory boot/update/confirmation smoke tests
+  - [x] Deploy the pinned H4 image and verify the installed gain/pan demo after reboot
+  - [x] Apply a distinct development-signed SWUpdate on H4, validate slot B and confirm it after physical audio/touch checks
 - [~] Automate layered validation
   - [x] Provide repeatable SDK cross-build and EVL runtime validation commands; verify the regenerated pinned SDK without development overlays
   - [x] Run targeted SDK-built tests and the controlled oscillator graph under EVL QEMU
   - [ ] Automate the QEMU boot/deploy/test/teardown sequence with explicit failure propagation
   - [x] Add a bounded platform-clock playback probe with machine-readable health results, tested natively and on EVL QEMU/H4 with null PCM
-  - [ ] Run sustained H4 playback under CPU and I/O load, recording underruns, rejections, and failures
-  - [ ] Record queue occupancy and verify bounded long-duration behavior
+  - [x] Run a five-minute H4 playback probe under CPU/I/O load and injected 16 ms producer stalls; record underruns, rejections, and failures
+  - [x] Expose queue occupancy/high-water metrics and collect a five-minute H4 CPU/I/O/jitter sample; multi-hour bounds remain open
   - [~] Maintain a [hardware validation matrix](docs/HARDWARE_VALIDATION.md); development observations recorded, exact release-stack qualification pending
 - [ ] Resolve independent producer/device clocks before claiming sustained dropout resistance
-  - [ ] Specify a device-clocked pacing or bounded drift-correction contract, including overflow and starvation policy
-  - [ ] Test positive and negative clock skew, scheduler jitter, startup, and recovery
-  - [ ] Verify long-running queue occupancy stays bounded without hiding dropped or repeated samples
+  - [~] Implement bounded output-sink resampling and run H4 integration, load, and +/-100 ppm offset probes; long-duration and audio-quality qualification remain
+  - [x] Add deterministic +/-100 ppm FIFO skew simulation with overflow, underflow/rebuffer, and nominal-rate recovery coverage; run native and EVL on H4
+  - [x] Test positive and negative 100 ppm producer offsets for five minutes each on H4; zero queue rejects or underruns
+  - [~] Verify bounded long-duration queue occupancy and correction behavior without hiding dropped or repeated samples
 - [ ] Complete the H4 display feedback loop
   - [ ] Add live peak/RMS/clipping meters to the gain/pan screen
   - [ ] Route authoritative gain and pan state back to widgets, including changes from a second control source
@@ -649,7 +652,7 @@ Record decisions here before their dependent phase begins.
 | Internal sample type | CMake-selected `float` or `double`; default `float` | Decided |
 | Channel storage | Planar fixed-capacity block | Decided |
 | Audio capacities | CMake-generated application-wide constants | Decided |
-| Scheduling model | Absolute platform-clock module deadlines implemented; device-clocked pacing versus bounded drift correction still to be specified | Open |
+| Scheduling model | Absolute platform-clock module deadlines plus bounded output-sink adaptive resampling | Physical clock-offset and audio-quality qualification pending |
 | Media decode boundary | In-band decoder worker feeding preallocated PCM chunks to the real-time renderer | Decided |
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
 | Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |

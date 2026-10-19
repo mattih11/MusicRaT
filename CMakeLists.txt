@@ -829,6 +829,16 @@ if(BUILD_TESTING)
     add_test(NAME musicrat.backends.playback_preroll
         COMMAND musicrat_playback_preroll_test)
 
+    add_executable(musicrat_audio_clock_drift_test
+        tests/backends/audio_clock_drift_test.cpp)
+    target_include_directories(musicrat_audio_clock_drift_test
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/backends/audio")
+    target_link_libraries(musicrat_audio_clock_drift_test PRIVATE musicrat_core)
+    target_compile_options(musicrat_audio_clock_drift_test
+        PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
+    add_test(NAME musicrat.backends.audio_clock_drift
+        COMMAND musicrat_audio_clock_drift_test)
+
     if(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
         add_executable(musicrat_audio_output_backend_alsa_test
             tests/backends/audio_output_backend_alsa_test.cpp)

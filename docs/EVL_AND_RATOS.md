@@ -173,6 +173,7 @@ The default preset still builds the headless `NONE` backend unless overridden.
 
 For targeted native validation, configure an ALSA build with `BUILD_TESTING=ON`,
 build `musicrat_audio_output_probe`, `musicrat_playback_preroll_test`,
+`musicrat_audio_clock_drift_test`,
 `musicrat_audio_output_backend_alsa_test`, and `musicrat_audio_device_sink_test`,
 then run:
 
@@ -181,7 +182,7 @@ bash scripts/validate-audio-runtime.sh std build-alsa-validation \
   tests/fixtures/alsa_null.conf
 ```
 
-For an already booted EVL QEMU guest, copy those four SDK-built executables,
+For an already booted EVL QEMU guest, copy those five SDK-built executables,
 `scripts/validate-audio-runtime.sh`, and `tests/fixtures/alsa_null.conf` to a
 separate guest directory and run the same script with `evl` instead of `std`.
 Provide the matching target runtime libraries through the image/package, not
@@ -201,19 +202,32 @@ other graph owns the selected PCM, then run, for example:
   --period-frames 480 --blocks 3000 --jitter-ms 16 --jitter-every 37
 ```
 
+For controlled positive/negative producer clock-offset experiments, add
+`--clock-offset-ppm 100` or `--clock-offset-ppm -100` (bounded to +/-1000 ppm).
+This changes only the probe producer's absolute block deadline interval; the
+audio device remains on its own clock. The JSON reports the requested offset.
+
 This emits a quiet 440 Hz sine and a JSON health result. The producer uses
 CoreRaT absolute deadlines on a platform-managed thread; EVL attachment failure
 is fatal. Format and jitter options are validated before opening the device.
-The probe stops after the requested block count and drops any final queued
-pre-roll when closing; it is not an end-of-stream drain test. A nonzero exit
-status means invalid input, backend/producer failure, rejected blocks, or
-underruns. Producer lateness includes deliberately injected jitter and is not
-hardware latency. Record negotiated PCM geometry separately from requested
-values, for example from `/proc/asound/card*/pcm*p/sub*/hw_params` while running.
+The result includes `queued_frames_at_end`, the ring depth sampled after the
+producer has finished, `queue_high_water_frames`, the largest producer-side
+admission depth observed during successful writes, and `queue_capacity_frames`.
+The concurrent consumer may advance between snapshots, so the admission-side
+high-water value can conservatively overstate instantaneous occupancy; it is
+bounded by ring capacity. The probe stops after the requested block count and
+drops any final queued pre-roll when closing; it is not an end-of-stream drain
+test. `current_rate_correction_ppm` and `maximum_rate_correction_ppm` report the
+backend's queue-feedback rate adjustment; it is bounded to +/-500 ppm. A
+nonzero exit status means invalid input, backend/producer failure, rejected
+blocks, underruns, or impossible queue metrics. Producer lateness includes
+deliberately injected jitter and is not hardware latency. Record negotiated PCM
+geometry separately from requested values, for example from
+`/proc/asound/card*/pcm*p/sub*/hw_params` while running.
 
 Do not interrupt a live demo for automated testing without approval. CPU/I/O
-stress, queue-occupancy/skew measurement, installed-image validation, and
-hardware latency measurements remain explicit gates in the
+stress with the new queue metrics, producer/device clock-skew measurement,
+installed-image validation, and hardware latency measurements remain explicit gates in the
 [roadmap](../ROADMAP.md). Record results and qualification limits in the
 [hardware validation matrix](HARDWARE_VALIDATION.md).
 

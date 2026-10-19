@@ -134,9 +134,10 @@ producer period and the device's callback/period size, capped to leave room for
 one maximum-sized incoming block in the queue. PipeWire emits silence without
 consuming queued samples during initial pre-roll. After starvation, it rebuilds
 the same reserve before resuming; silence after playback has started remains
-visible in the underrun counters. This absorbs bounded scheduling jitter; it
-does not synchronize independent producer and hardware clocks or conceal
-sustained rate mismatches.
+visible in the underrun counters. A bounded queue-error controller adjusts the
+source-frames-per-device-frame ratio; linear interpolation and a fractional
+read cursor absorb small independent producer/device clock differences without
+blocking the producer graph.
 
 The ALSA implementation opens the configured PCM directly, defaulting to
 `default`, and requests interleaved PCM16. Its preallocated bounded SPSC queue
@@ -147,6 +148,18 @@ failures are exposed through the same counters as the PipeWire backend.
 Pre-roll includes ALSA's negotiated device buffer plus the reserve calculated
 from its negotiated period rather than assuming the requested period was
 accepted, subject to the same queue cap. It is repeated after an ALSA underrun.
+The worker applies the same bounded queue-error resampling policy as PipeWire.
+
+The adaptive correction is clamped to +/-500 ppm and proportional to queue
+depth error at one ppm per four frames. A positive correction consumes source
+frames slightly faster to lower a high queue; a negative correction slows
+consumption when the queue is low. Both backends use bounded linear
+interpolation; ALSA resamples before PCM16 conversion, and PipeWire resamples
+into its negotiated float output. The probe reports instantaneous correction
+and maximum absolute correction alongside queue metrics. Drift beyond the
+correction bound can still eventually overflow or starve the bounded queue;
+the correction changes rate by at most 0.05% and does not claim clock lock,
+latency bounds, or subjective transparency without physical qualification.
 
 Module cadence uses the CommRaT/CoreRaT `Time` abstraction and absolute periodic
 deadlines, so wake-up lateness does not accumulate on every block. EVL producers

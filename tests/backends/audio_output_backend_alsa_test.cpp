@@ -44,7 +44,15 @@ int main() {
         assert(backend->open(null_config));
         assert(backend->underrun_count() == 0);
         assert(backend->stream_failure_count() == 0);
+        assert(backend->queue_capacity() > 0);
+        assert(backend->queued_frames() <= backend->queue_capacity());
+        assert(backend->queue_high_water_frames() == 0);
+        assert(backend->rate_correction_ppm() == 0);
+        assert(backend->maximum_rate_correction_ppm() == 0);
         assert(backend->write(block));
+        assert(backend->queue_high_water_frames() >= frames);
+        assert(backend->queue_high_water_frames()
+            <= backend->queue_capacity());
         backend->close();
         assert(!backend->write(block));
     }

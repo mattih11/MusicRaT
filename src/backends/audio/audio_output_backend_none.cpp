@@ -31,6 +31,26 @@ public:
     [[nodiscard]] uint64_t stream_failure_count() const noexcept override {
         return 0;
     }
+
+    [[nodiscard]] uint64_t queued_frames() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint64_t queue_high_water_frames() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint64_t queue_capacity() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] int32_t rate_correction_ppm() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint32_t maximum_rate_correction_ppm() const noexcept override {
+        return 0;
+    }
 };
 
 } // namespace

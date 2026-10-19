@@ -15,6 +15,7 @@ if [[ ! -f "$null_config" ]]; then
     exit 1
 fi
 for name in musicrat_audio_output_probe musicrat_playback_preroll_test \
+    musicrat_audio_clock_drift_test \
     musicrat_audio_output_backend_alsa_test musicrat_audio_device_sink_test; do
     if [[ ! -x "$binary_dir/$name" ]]; then
         echo "Required runtime binary missing: $binary_dir/$name" >&2
@@ -26,6 +27,7 @@ echo "Kernel: $(uname -srvm)"
 echo "Runtime binary checksums:"
 sha256sum "$binary_dir/musicrat_audio_output_probe" \
     "$binary_dir/musicrat_playback_preroll_test" \
+    "$binary_dir/musicrat_audio_clock_drift_test" \
     "$binary_dir/musicrat_audio_output_backend_alsa_test" \
     "$binary_dir/musicrat_audio_device_sink_test"
 if [[ "$platform" == "evl" ]]; then
@@ -38,6 +40,7 @@ fi
 
 export ALSA_CONFIG_PATH="$null_config"
 "$binary_dir/musicrat_playback_preroll_test"
+"$binary_dir/musicrat_audio_clock_drift_test"
 "$binary_dir/musicrat_audio_output_backend_alsa_test"
 "$binary_dir/musicrat_audio_device_sink_test"
 if result=$("$binary_dir/musicrat_audio_output_probe" --device null --blocks 10); then

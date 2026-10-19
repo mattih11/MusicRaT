@@ -3,6 +3,7 @@
 #include <musicrat/config.hpp>
 
 #include "playback_preroll.hpp"
+#include "queue_drift_controller.hpp"
 
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
@@ -83,11 +84,16 @@ public:
         channel_count_ = config.channel_count;
         read_position_.store(0, std::memory_order_relaxed);
         write_position_.store(0, std::memory_order_relaxed);
+        read_fraction_ = 0.0;
+        queue_high_water_frames_.store(0, std::memory_order_relaxed);
         preroll_.reset(
             config.period_frames, queue_capacity_frames - config::max_audio_frames);
+        drift_controller_.reset(preroll_.target_frames(config.period_frames));
         underruns_.store(0, std::memory_order_relaxed);
         underrun_frames_.store(0, std::memory_order_relaxed);
         stream_failures_.store(0, std::memory_order_relaxed);
+        rate_correction_ppm_.store(0, std::memory_order_relaxed);
+        maximum_rate_correction_ppm_.store(0, std::memory_order_relaxed);
 
         loop_ = pw_thread_loop_new("musicrat-audio-output", nullptr);
         if (loop_ == nullptr) {
@@ -216,6 +222,11 @@ public:
         }
         write_position_.store(
             write_position + block.frame_count, std::memory_order_release);
+        queue_high_water_frames_.store(
+            std::max<uint64_t>(
+                queue_high_water_frames_.load(std::memory_order_relaxed),
+                used_frames + block.frame_count),
+            std::memory_order_relaxed);
         return true;
     }
 
@@ -229,6 +240,33 @@ public:
 
     [[nodiscard]] uint64_t stream_failure_count() const noexcept override {
         return stream_failures_.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] uint64_t queued_frames() const noexcept override {
+        const uint64_t read_position =
+            read_position_.load(std::memory_order_acquire);
+        const uint64_t write_position =
+            write_position_.load(std::memory_order_acquire);
+        return write_position >= read_position
+            ? std::min<uint64_t>(
+                write_position - read_position, queue_capacity_frames)
+            : 0;
+    }
+
+    [[nodiscard]] uint64_t queue_high_water_frames() const noexcept override {
+        return queue_high_water_frames_.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] uint64_t queue_capacity() const noexcept override {
+        return queue_capacity_frames;
+    }
+
+    [[nodiscard]] int32_t rate_correction_ppm() const noexcept override {
+        return rate_correction_ppm_.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] uint32_t maximum_rate_correction_ppm() const noexcept override {
+        return maximum_rate_correction_ppm_.load(std::memory_order_relaxed);
     }
 
 private:
@@ -292,42 +330,73 @@ private:
             read_position_.load(std::memory_order_relaxed);
         const uint64_t write_position =
             write_position_.load(std::memory_order_acquire);
-        const uint32_t available_frames = preroll_.ready(
-            write_position - read_position, requested_frames)
-            ? static_cast<uint32_t>(std::min<uint64_t>(
-                write_position - read_position, requested_frames))
+        const uint64_t queued_frames = write_position - read_position;
+        const bool ready = preroll_.ready(queued_frames, requested_frames);
+        const int32_t correction = ready
+            ? drift_controller_.update(queued_frames)
             : 0;
-
-        for (uint32_t frame = 0; frame < available_frames; ++frame) {
+        record_rate_correction(correction);
+        const double source_step = detail::source_step_for_correction(correction);
+        double source_phase = read_fraction_;
+        uint32_t output_frames = 0;
+        for (; ready && output_frames < requested_frames; ++output_frames) {
+            const uint64_t source_offset =
+                static_cast<uint64_t>(source_phase);
+            if (source_offset + 1 >= queued_frames) {
+                break;
+            }
             const std::size_t queue_frame = static_cast<std::size_t>(
-                (read_position + frame) % queue_capacity_frames);
-            std::memcpy(
-                output + static_cast<std::size_t>(frame) * channel_count_,
-                samples_.data() + queue_frame * channel_count_,
-                stride);
+                (read_position + source_offset) % queue_capacity_frames);
+            const std::size_t next_queue_frame =
+                (queue_frame + 1) % queue_capacity_frames;
+            const double fraction = source_phase - source_offset;
+            for (uint16_t channel = 0; channel < channel_count_; ++channel) {
+                const double first =
+                    samples_[queue_frame * channel_count_ + channel];
+                const double second =
+                    samples_[next_queue_frame * channel_count_ + channel];
+                output[static_cast<std::size_t>(output_frames) * channel_count_
+                       + channel] =
+                    static_cast<float>(detail::linear_interpolate(
+                        first, second, fraction));
+            }
+            source_phase += source_step;
         }
-        if (available_frames < requested_frames) {
+        if (output_frames < requested_frames) {
             std::memset(
-                output + static_cast<std::size_t>(available_frames) * channel_count_,
+                output + static_cast<std::size_t>(output_frames) * channel_count_,
                 0,
-                static_cast<std::size_t>(requested_frames - available_frames)
+                static_cast<std::size_t>(requested_frames - output_frames)
                     * stride);
             if (preroll_.started()) {
                 underruns_.fetch_add(1, std::memory_order_relaxed);
                 underrun_frames_.fetch_add(
-                    requested_frames - available_frames,
+                    requested_frames - output_frames,
                     std::memory_order_relaxed);
             }
             preroll_.rebuffer();
         }
 
+        const uint64_t consumed_frames = detail::advance_source_cursor(
+            read_fraction_, output_frames, source_step, read_fraction_);
         read_position_.store(
-            read_position + available_frames, std::memory_order_release);
+            read_position + consumed_frames, std::memory_order_release);
         data.chunk->offset = 0;
         data.chunk->stride = static_cast<int32_t>(stride);
         data.chunk->size = requested_frames * stride;
         pipewire_buffer->size = requested_frames;
         pw_stream_queue_buffer(stream_, pipewire_buffer);
+    }
+
+    void record_rate_correction(int32_t correction) noexcept {
+        rate_correction_ppm_.store(correction, std::memory_order_relaxed);
+        const uint32_t magnitude = static_cast<uint32_t>(
+            correction < 0 ? -correction : correction);
+        if (magnitude > maximum_rate_correction_ppm_.load(
+                            std::memory_order_relaxed)) {
+            maximum_rate_correction_ppm_.store(
+                magnitude, std::memory_order_relaxed);
+        }
     }
 
     inline static const pw_stream_events stream_events_ = [] {
@@ -342,12 +411,17 @@ private:
         samples_{};
     std::atomic<uint64_t> read_position_{0};
     std::atomic<uint64_t> write_position_{0};
+    std::atomic<uint64_t> queue_high_water_frames_{0};
+    std::atomic<int32_t> rate_correction_ppm_{0};
+    std::atomic<uint32_t> maximum_rate_correction_ppm_{0};
     std::atomic<uint64_t> underruns_{0};
     std::atomic<uint64_t> underrun_frames_{0};
     std::atomic<uint64_t> stream_failures_{0};
     detail::PlaybackPreroll preroll_;
     std::atomic<bool> open_{false};
     std::atomic<pw_stream_state> state_{PW_STREAM_STATE_UNCONNECTED};
+    detail::QueueDriftController drift_controller_;
+    double read_fraction_{0.0};
     pw_thread_loop* loop_{nullptr};
     pw_stream* stream_{nullptr};
     uint16_t channel_count_{0};

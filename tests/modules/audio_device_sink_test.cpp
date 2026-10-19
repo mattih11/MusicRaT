@@ -45,6 +45,26 @@ public:
         return 2;
     }
 
+    [[nodiscard]] uint64_t queued_frames() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint64_t queue_high_water_frames() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint64_t queue_capacity() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] int32_t rate_correction_ppm() const noexcept override {
+        return 0;
+    }
+
+    [[nodiscard]] uint32_t maximum_rate_correction_ppm() const noexcept override {
+        return 0;
+    }
+
     bool opened{false};
     bool accept_writes{true};
     uint64_t writes{0};
