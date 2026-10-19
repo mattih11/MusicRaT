@@ -41,7 +41,7 @@ describe('binding editor model', () => {
     const workspace = importApplication(demoApplication, demoDescriptors)
     expect(endpointOptions(control).map((option) => option.label)).toEqual(['Desk / Gain'])
     expect(parameterTargetOptions(workspace.modules).map((option) => option.label))
-      .toEqual(['Instrument_1 / Gain'])
+      .toEqual(['Instrument_1 / Gain', 'StereoPanner_1 / Pan'])
   })
 
   it('separates control sources from feedback-only endpoints', () => {

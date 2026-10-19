@@ -9,12 +9,14 @@ namespace CommRaT {
 
 class StereoPanner : public MusicRaT::Module2<
     commrat::Output<Messages::AudioBlock>,
+    commrat::Output<Messages::ParameterStateBlock>,
     commrat::Input<Messages::AudioBlock>,
     commrat::SyncedInput<Messages::ParameterEventBlock>,
     commrat::Params<Parameters::StereoPanner>
 > {
     using Base = MusicRaT::Module2<
         commrat::Output<Messages::AudioBlock>,
+        commrat::Output<Messages::ParameterStateBlock>,
         commrat::Input<Messages::AudioBlock>,
         commrat::SyncedInput<Messages::ParameterEventBlock>,
         commrat::Params<Parameters::StereoPanner>>;
@@ -37,6 +39,13 @@ public:
                 .direction = PORT_DIRECTION_INPUT,
                 .port_index = 0,
                 .domain = PORT_DOMAIN_AUDIO,
+            },
+            {
+                .id = "parameter_state",
+                .display_name = "Parameter State",
+                .direction = PORT_DIRECTION_OUTPUT,
+                .port_index = 1,
+                .domain = PORT_DOMAIN_PARAMETER,
             },
             {
                 .id = "parameter_events",
@@ -97,12 +106,18 @@ protected:
     void process(
         const Messages::AudioBlock& input,
         const commrat::Synced<Messages::ParameterEventBlock>& parameter_events,
-        Messages::AudioBlock& output) override {
+        Messages::AudioBlock& output,
+        Messages::ParameterStateBlock& parameter_state) override {
         const Messages::ParameterEventBlock* events = nullptr;
         if (parameter_events.is_fresh()) {
             events = &parameter_events.value();
         }
         processor_.process(input, events, output);
+        parameter_state.states.clear();
+        parameter_state.states.push_back(processor_.pan_state());
+        parameter_state.timestamp_ns = input.timestamp_ns;
+        parameter_state.sequence_number = state_sequence_number_++;
+        parameter_state.flags = Messages::PARAMETER_STATE_BLOCK_SNAPSHOT;
     }
 
     void on_params_changed() override {
@@ -111,6 +126,7 @@ protected:
 
 private:
     musicrat::dsp::StereoPannerProcessor processor_{};
+    uint64_t state_sequence_number_{0};
 };
 
 } // namespace CommRaT

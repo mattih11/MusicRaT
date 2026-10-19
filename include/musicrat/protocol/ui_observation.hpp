@@ -73,4 +73,20 @@ struct LevelMeterUiAdapter {
     sertial::fixed_vector<CompiledLevelMeterObservationBinding, MAX_BINDINGS> bindings{};
 };
 
+struct CompiledParameterStateUiBinding {
+    CommRaT::Messages::ControlBindingId binding_id{
+        CommRaT::Messages::INVALID_CONTROL_BINDING_ID};
+    uint32_t parameter_id{0};
+    sertial::fixed_string<64> surface_id{};
+    sertial::fixed_string<64> widget_id{};
+    double parameter_minimum{0.0};
+    double parameter_maximum{1.0};
+};
+
+struct ParameterStateUiAdapter {
+    static constexpr std::size_t MAX_BINDINGS = musicrat::config::max_parameter_events;
+
+    sertial::fixed_vector<CompiledParameterStateUiBinding, MAX_BINDINGS> bindings{};
+};
+
 } // namespace CommRaT::Parameters

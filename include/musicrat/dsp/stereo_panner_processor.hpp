@@ -4,6 +4,7 @@
 #include <musicrat/dsp/stereo_panner.hpp>
 #include <musicrat/protocol/audio_block.hpp>
 #include <musicrat/protocol/parameter_events.hpp>
+#include <musicrat/protocol/parameter_state.hpp>
 #include <musicrat/protocol/stereo_panner.hpp>
 #include <musicrat/utility/audio_block.hpp>
 
@@ -31,12 +32,18 @@ public:
         const auto gains = stereo_pan_gains(parameters_.pan, parameters_.pan_law);
         left_gain_.set_immediate(gains.left);
         right_gain_.set_immediate(gains.right);
+        set_pan_state(parameters_.pan);
     }
 
     void set_parameters(
         const CommRaT::Parameters::StereoPanner& parameters) noexcept {
         parameters_ = normalize(parameters);
         ramp_to(parameters_.pan);
+        set_pan_state(parameters_.pan);
+    }
+
+    [[nodiscard]] const CommRaT::Messages::ParameterState& pan_state() const noexcept {
+        return pan_state_;
     }
 
     void process(
@@ -110,7 +117,23 @@ private:
             || !std::isfinite(event.value)) {
             return;
         }
-        ramp_to(static_cast<Sample>(std::clamp(event.value, -1.0, 1.0)));
+        parameters_.pan = static_cast<Sample>(
+            std::clamp(event.value, -1.0, 1.0));
+        ramp_to(parameters_.pan);
+        pan_state_ = {
+            .parameter_id = CommRaT::Parameters::PAN_PARAMETER_ID,
+            .source_endpoint_id = event.source_endpoint_id,
+            .origin_id = event.origin_id,
+            .binding_id = event.binding_id,
+            .value = parameters_.pan,
+        };
+    }
+
+    void set_pan_state(Sample pan) noexcept {
+        pan_state_ = {
+            .parameter_id = CommRaT::Parameters::PAN_PARAMETER_ID,
+            .value = pan,
+        };
     }
 
     void ramp_to(Sample pan) noexcept {
@@ -122,6 +145,7 @@ private:
     CommRaT::Parameters::StereoPanner parameters_{};
     musicrat::dsp::Gain left_gain_{};
     musicrat::dsp::Gain right_gain_{};
+    CommRaT::Messages::ParameterState pan_state_{};
 };
 
 } // namespace musicrat::dsp

@@ -209,6 +209,13 @@ surface, widget, and property IDs. `examples/configs/level_meter_to_ui.json`
 exercises the typed launcher route. The block is a renderer-neutral runtime
 boundary; RatGUI and LVGL remain responsible for subscription and drawing.
 
+`MusicRaTParameterStateUiAdapter` maps authoritative parameter snapshots to
+normalized widget values using the parameter's declared range. The gain and
+stereo-panner modules publish state snapshots, so a control source outside the
+display can change a parameter and still update its LVGL widget. These updates
+share the display's bounded widget-update merge chain with meter observations;
+programmatic updates do not generate new control events.
+
 The optional `musicrat_lvgl_widgets` backend creates meter, toggle, text,
 slider, knob, and button widgets from the Designer's LVGL manifest. It applies
 normalized value, active, and text updates on the caller's LVGL thread. Enable it by setting

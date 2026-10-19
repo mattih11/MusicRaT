@@ -190,7 +190,7 @@ remain deferred until their runtime ownership contracts are defined.
   - [~] Verify bounded long-duration queue occupancy and correction behavior without hiding dropped or repeated samples
 - [ ] Complete the H4 display feedback loop
   - [x] Add live peak/RMS/clipping meters to the gain/pan screen
-  - [ ] Route authoritative gain and pan state back to widgets, including changes from a second control source
+  - [x] Compile authoritative gain and pan parameter state into LVGL widget updates, merged with meter observations and covered by a second-source compiler fixture
   - [ ] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
 - [ ] Extend the processing channel after the stabilization gates
   - [ ] Compose the configurable channel strip from existing mapper, gain, and panner kernels

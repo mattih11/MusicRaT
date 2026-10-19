@@ -329,11 +329,11 @@ describe('control launch compiler', () => {
     )
   })
 
-  it('materializes LevelMeter observations through a typed UI adapter', () => {
+  it('routes meter observations and external parameter state back to LVGL', () => {
     const observationControl = structuredClone(control)
     observationControl.bindings = [{
-      id: 'slider-gain',
-      source: { owner_id: 'display-touch-display-1', endpoint_id: 'slider-gain' },
+      id: 'hardware-gain',
+      source: { owner_id: 'faders', endpoint_id: 'gain' },
       target: { module_id: 'Instrument_1', parameter_id: 1 },
       mode: 'absolute',
     }, {
@@ -375,6 +375,13 @@ describe('control launch compiler', () => {
         route: 'feedback',
         observable: { module_id: 'Meter_1', observable_id: 'peak', channel: 0 },
         observation_binding_id: 'peak-observation',
+      }, {
+        id: 'gain-state',
+        kind: 'knob',
+        display_name: 'Gain state',
+        layout: { x: 80, y: 0, width: 20, height: 10 },
+        route: 'feedback',
+        parameter: { module_id: 'Instrument_1', parameter_id: 1 },
       }],
     }]
     observationControl.observation_bindings = [{
@@ -453,11 +460,28 @@ describe('control launch compiler', () => {
         channel: 0,
       }] },
     }])
+    expect(plan.parameter_state_adapters).toEqual([{
+      module_id: 'ParameterStateUiAdapter_1',
+      source_module_id: 'Instrument_1',
+      surface_id: 'display-touch-display-1',
+      params: { bindings: [{
+        binding_id: 1,
+        parameter_id: 1,
+        surface_id: 'display-touch-display-1',
+        widget_id: 'gain-state',
+        parameter_minimum: 0,
+        parameter_maximum: 1,
+      }] },
+    }])
 
     const application = compileLaunchApplication(workspace)
     const adapter = application.modules.find(
       (module) => module.module_class === 'MusicRaTLevelMeterUiAdapter')!
+    const parameterAdapter = application.modules.find(
+      (module) => module.module_class === 'MusicRaTParameterStateUiAdapter')!
     const meter = application.modules.find((module) => module.name === 'Meter_1')!
+    const instrument = application.modules.find(
+      (module) => module.name === 'Instrument_1')!
     expect(adapter.musicrat_generated).toBe('observation_adapter')
     expect(adapter.inputs).toEqual([{
       source_system_id: meter.outputs![1].system_id,
@@ -467,6 +491,17 @@ describe('control launch compiler', () => {
     expect(application.modules.indexOf(adapter)).toBe(
       application.modules.indexOf(meter) + 1,
     )
+    expect(parameterAdapter.musicrat_generated).toBe('parameter_state_ui_adapter')
+    expect(parameterAdapter.inputs).toEqual([{
+      source_system_id: instrument.outputs![1].system_id,
+      source_instance_id: instrument.outputs![1].instance_id,
+    }])
+    expect(parameterAdapter.params).toEqual(plan.parameter_state_adapters[0].params)
+    expect(application.modules.indexOf(parameterAdapter)).toBe(
+      application.modules.indexOf(instrument) + 1,
+    )
+    const merger = application.modules.find(
+      (module) => module.musicrat_generated === 'widget_update_merger')!
     const sink = application.modules.find(
       (module) => module.module_class === 'MusicRaTLvglWidgetSink')!
     const mappers = application.modules.filter(
@@ -475,8 +510,16 @@ describe('control launch compiler', () => {
     expect(sink.outputs).toHaveLength(1)
     expect(sink.period_ms).toBe(10)
     expect(sink.synced_inputs).toEqual([{
+      source_system_id: merger.outputs![0].system_id,
+      source_instance_id: merger.outputs![0].instance_id,
+    }])
+    expect(merger.inputs).toEqual([{
       source_system_id: adapter.outputs![0].system_id,
       source_instance_id: adapter.outputs![0].instance_id,
+    }])
+    expect(merger.synced_inputs).toEqual([{
+      source_system_id: parameterAdapter.outputs![0].system_id,
+      source_instance_id: parameterAdapter.outputs![0].instance_id,
     }])
     expect(sink.params).toEqual({
       manifest_path: `${workspace.appName}.lvgl.json`,
@@ -495,15 +538,24 @@ describe('control launch compiler', () => {
       }],
     })
     expect(mappers).toHaveLength(2)
-    expect(mappers.every((mapper) => mapper.inputs?.[0].source_system_id
-      === sink.outputs?.[0].system_id
-      && mapper.inputs?.[0].source_instance_id === sink.outputs?.[0].instance_id)).toBe(true)
-    for (const targetName of ['Instrument_1', 'Instrument_2']) {
-      const target = application.modules.find((module) => module.name === targetName)!
-      const mapper = mappers.find((candidate) => candidate.outputs?.[0].instance_id
-        === target.synced_inputs?.[0].source_instance_id)!
-      expect(mapper).toBeDefined()
-    }
+    const hardwareSource = application.modules.find(
+      (module) => module.name === 'FaderAdapter_1')!
+    const hardwareTarget = application.modules.find(
+      (module) => module.name === 'Instrument_1')!
+    const displayTarget = application.modules.find(
+      (module) => module.name === 'Instrument_2')!
+    const hardwareMapper = mappers.find((candidate) => candidate.outputs?.[0].instance_id
+      === hardwareTarget.synced_inputs?.[0].source_instance_id)!
+    const displayMapper = mappers.find((candidate) => candidate.outputs?.[0].instance_id
+      === displayTarget.synced_inputs?.[0].source_instance_id)!
+    expect(hardwareMapper.inputs).toEqual([{
+      source_system_id: hardwareSource.outputs![0].system_id,
+      source_instance_id: hardwareSource.outputs![0].instance_id,
+    }])
+    expect(displayMapper.inputs).toEqual([{
+      source_system_id: sink.outputs![0].system_id,
+      source_instance_id: sink.outputs![0].instance_id,
+    }])
 
     const imported = importApplication(
       application,
@@ -512,6 +564,10 @@ describe('control launch compiler', () => {
     const recompiled = compileLaunchApplication(imported)
     expect(recompiled.modules.filter(
       (module) => module.musicrat_generated === 'observation_adapter')).toHaveLength(1)
+    expect(recompiled.modules.filter(
+      (module) => module.musicrat_generated === 'parameter_state_ui_adapter')).toHaveLength(1)
+    expect(recompiled.modules.filter(
+      (module) => module.musicrat_generated === 'widget_update_merger')).toHaveLength(1)
     expect(recompiled.modules.filter(
       (module) => module.musicrat_generated === 'lvgl_widget_sink')).toHaveLength(1)
 
@@ -545,31 +601,42 @@ describe('control launch compiler', () => {
       },
     })
     const mergedApplication = compileLaunchApplication(multipleStreams)
-    const adapters = mergedApplication.modules.filter(
+    const observationAdapters = mergedApplication.modules.filter(
       (module) => module.musicrat_generated === 'observation_adapter')
-    const merger = mergedApplication.modules.find(
+    const stateAdapter = mergedApplication.modules.find(
+      (module) => module.musicrat_generated === 'parameter_state_ui_adapter')!
+    const mergers = mergedApplication.modules.filter(
       (module) => module.musicrat_generated === 'widget_update_merger')!
     const mergedSink = mergedApplication.modules.find(
       (module) => module.musicrat_generated === 'lvgl_widget_sink')!
-    expect(adapters).toHaveLength(2)
-    expect(merger.inputs).toEqual([{
-      source_system_id: adapters[0].outputs![0].system_id,
-      source_instance_id: adapters[0].outputs![0].instance_id,
+    expect(observationAdapters).toHaveLength(2)
+    expect(mergers).toHaveLength(2)
+    expect(mergers[0].inputs).toEqual([{
+      source_system_id: observationAdapters[0].outputs![0].system_id,
+      source_instance_id: observationAdapters[0].outputs![0].instance_id,
     }])
-    expect(merger.synced_inputs).toEqual([{
-      source_system_id: adapters[1].outputs![0].system_id,
-      source_instance_id: adapters[1].outputs![0].instance_id,
+    expect(mergers[0].synced_inputs).toEqual([{
+      source_system_id: observationAdapters[1].outputs![0].system_id,
+      source_instance_id: observationAdapters[1].outputs![0].instance_id,
+    }])
+    expect(mergers[1].inputs).toEqual([{
+      source_system_id: mergers[0].outputs![0].system_id,
+      source_instance_id: mergers[0].outputs![0].instance_id,
+    }])
+    expect(mergers[1].synced_inputs).toEqual([{
+      source_system_id: stateAdapter.outputs![0].system_id,
+      source_instance_id: stateAdapter.outputs![0].instance_id,
     }])
     expect(mergedSink.synced_inputs).toEqual([{
-      source_system_id: merger.outputs![0].system_id,
-      source_instance_id: merger.outputs![0].instance_id,
+      source_system_id: mergers[1].outputs![0].system_id,
+      source_instance_id: mergers[1].outputs![0].instance_id,
     }])
     const recompiledMerged = compileLaunchApplication(importApplication(
       mergedApplication,
       multipleStreams.modules.map((module) => module.descriptor),
     ))
     expect(recompiledMerged.modules.filter(
-      (module) => module.musicrat_generated === 'widget_update_merger')).toHaveLength(1)
+      (module) => module.musicrat_generated === 'widget_update_merger')).toHaveLength(2)
     expect(recompiledMerged.modules.filter(
       (module) => module.musicrat_generated === 'lvgl_widget_sink')).toHaveLength(1)
 
@@ -606,7 +673,7 @@ describe('control launch compiler', () => {
       (module) => module.musicrat_generated === 'lvgl_widget_sink')
     expect(displaySinks).toHaveLength(2)
     expect(displayApplication.modules.filter(
-      (module) => module.musicrat_generated === 'widget_update_merger')).toHaveLength(0)
+      (module) => module.musicrat_generated === 'widget_update_merger')).toHaveLength(1)
     expect(displaySinks.map((module) => module.params?.display_instance_id)).toEqual([
       'touch-display-1',
       'touch-display-2',

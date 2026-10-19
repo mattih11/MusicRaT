@@ -6,7 +6,7 @@
       "module_class": "MusicRaTLvglWidgetSink",
       "outputs": [{ "system_id": 60, "instance_id": 1 }],
       "inputs": [],
-      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 5 }],
       "period_ms": 10,
       "params": {
         "manifest_path": "@MUSICRAT_LVGL_MANIFEST_DIR@/interactive_gain_pan.lvgl.json",
@@ -158,9 +158,58 @@
       }
     },
     {
+      "name": "GainParameterStateUiAdapter_1",
+      "module_class": "MusicRaTParameterStateUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 20, "source_instance_id": 3 }],
+      "params": {
+        "bindings": [{
+          "binding_id": 6,
+          "parameter_id": 1,
+          "surface_id": "display-channel-strip",
+          "widget_id": "gain",
+          "parameter_minimum": 0.0,
+          "parameter_maximum": 2.0
+        }]
+      }
+    },
+    {
+      "name": "PanParameterStateUiAdapter_1",
+      "module_class": "MusicRaTParameterStateUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 3 }],
+      "inputs": [{ "source_system_id": 20, "source_instance_id": 4 }],
+      "params": {
+        "bindings": [{
+          "binding_id": 7,
+          "parameter_id": 1,
+          "surface_id": "display-channel-strip",
+          "widget_id": "pan",
+          "parameter_minimum": -1.0,
+          "parameter_maximum": 1.0
+        }]
+      }
+    },
+    {
+      "name": "WidgetUpdateMerger_1",
+      "module_class": "MusicRaTWidgetUpdateMerger",
+      "outputs": [{ "system_id": 50, "instance_id": 4 }],
+      "inputs": [{ "source_system_id": 50, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 2 }]
+    },
+    {
+      "name": "WidgetUpdateMerger_2",
+      "module_class": "MusicRaTWidgetUpdateMerger",
+      "outputs": [{ "system_id": 50, "instance_id": 5 }],
+      "inputs": [{ "source_system_id": 50, "source_instance_id": 4 }],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 3 }]
+    },
+    {
       "name": "StereoPanner_1",
       "module_class": "MusicRaTStereoPanner",
-      "outputs": [{ "system_id": 10, "instance_id": 3 }],
+      "outputs": [
+        { "system_id": 10, "instance_id": 3 },
+        { "system_id": 20, "instance_id": 4 }
+      ],
       "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }],
       "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 2 }],
       "params": {

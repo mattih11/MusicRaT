@@ -41,6 +41,8 @@ int main() {
         .parameter_id = CommRaT::Parameters::PAN_PARAMETER_ID,
         .sample_offset = 0,
         .value = 1.0,
+        .origin_id = 13,
+        .binding_id = 7,
     });
 
     CommRaT::Messages::AudioBlock output{};
@@ -56,12 +58,21 @@ int main() {
         assert(near(output.channels[0][frame], 1.0 - right));
         assert(near(output.channels[1][frame], right));
     }
+    assert(processor.pan_state().parameter_id
+        == CommRaT::Parameters::PAN_PARAMETER_ID);
+    assert(processor.pan_state().source_endpoint_id == 1);
+    assert(processor.pan_state().origin_id == 13);
+    assert(processor.pan_state().binding_id == 7);
+    assert(processor.pan_state().value == 1.0);
 
     processor.set_parameters_immediate({
         .pan = 0.0,
         .pan_law = CommRaT::Parameters::PAN_LAW_EQUAL_POWER,
         .smoothing_samples = 0,
     });
+    assert(processor.pan_state().value == 0.0);
+    assert(processor.pan_state().origin_id
+        == CommRaT::Messages::INVALID_CONTROL_ORIGIN_ID);
     processor.process(input, nullptr, output);
     assert(near(output.channels[0][0], std::sqrt(0.5)));
     assert(near(output.channels[1][0], std::sqrt(0.5)));

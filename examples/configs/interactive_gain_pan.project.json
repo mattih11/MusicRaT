@@ -43,7 +43,10 @@
     {
       "name": "StereoPanner_1",
       "module_class": "MusicRaTStereoPanner",
-      "outputs": [{ "system_id": 10, "instance_id": 3 }],
+      "outputs": [
+        { "system_id": 10, "instance_id": 3 },
+        { "system_id": 20, "instance_id": 4 }
+      ],
       "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }],
       "params": {
         "pan": 0.0,
@@ -112,7 +115,9 @@
             "display_name": "Gain",
             "layout": { "x": 16, "y": 24, "width": 22, "height": 64 },
             "route": "control",
-            "endpoint_id": "gain"
+            "endpoint_id": "gain",
+            "binding_id": "gain-binding",
+            "parameter": { "module_id": "Gain_1", "parameter_id": 1 }
           },
           {
             "id": "pan",
@@ -120,7 +125,9 @@
             "display_name": "Pan",
             "layout": { "x": 58, "y": 30, "width": 30, "height": 40 },
             "route": "control",
-            "endpoint_id": "pan"
+            "endpoint_id": "pan",
+            "binding_id": "pan-binding",
+            "parameter": { "module_id": "StereoPanner_1", "parameter_id": 1 }
           }
         ]
       }

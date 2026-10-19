@@ -544,6 +544,13 @@ if(BUILD_MUSICRAT)
         musicrat_core
     )
 
+    commrat_module(musicrat_parameter_state_ui_adapter
+        SOURCES src/modules/parameter_state_ui_adapter_main.cpp
+        MODULE_CLASS MusicRaTParameterStateUiAdapter
+        LINKS
+        musicrat_core
+    )
+
     commrat_module(musicrat_widget_update_merger
         SOURCES src/modules/widget_update_merger_main.cpp
         MODULE_CLASS MusicRaTWidgetUpdateMerger
@@ -588,6 +595,7 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_audio_file_player PRIVATE /W4)
         target_compile_options(musicrat_level_meter PRIVATE /W4)
         target_compile_options(musicrat_level_meter_ui_adapter PRIVATE /W4)
+        target_compile_options(musicrat_parameter_state_ui_adapter PRIVATE /W4)
         target_compile_options(musicrat_widget_update_merger PRIVATE /W4)
         if(TARGET musicrat_lvgl_widget_sink)
             target_compile_options(musicrat_lvgl_widget_sink PRIVATE /W4)
@@ -611,6 +619,7 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_audio_file_player PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_level_meter PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_level_meter_ui_adapter PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_parameter_state_ui_adapter PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_widget_update_merger PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET musicrat_lvgl_widget_sink)
             target_compile_options(musicrat_lvgl_widget_sink PRIVATE -Wall -Wextra -Wpedantic)
@@ -637,6 +646,7 @@ if(BUILD_MUSICRAT)
         musicrat_audio_file_player
         musicrat_level_meter
         musicrat_level_meter_ui_adapter
+        musicrat_parameter_state_ui_adapter
         musicrat_widget_update_merger
         musicrat_telemetry_sink
         musicrat_launcher
@@ -664,6 +674,7 @@ if(BUILD_MUSICRAT)
     musicrat_install_module_descriptor(musicrat_audio_file_player MusicRaTAudioFilePlayer)
     musicrat_install_module_descriptor(musicrat_level_meter MusicRaTLevelMeter)
     musicrat_install_module_descriptor(musicrat_level_meter_ui_adapter MusicRaTLevelMeterUiAdapter)
+    musicrat_install_module_descriptor(musicrat_parameter_state_ui_adapter MusicRaTParameterStateUiAdapter)
     musicrat_install_module_descriptor(musicrat_widget_update_merger MusicRaTWidgetUpdateMerger)
     musicrat_install_module_descriptor(musicrat_telemetry_sink MusicRaTTelemetrySink)
     if(TARGET musicrat_lvgl_widget_sink)
@@ -756,6 +767,13 @@ if(BUILD_TESTING)
     target_link_libraries(musicrat_stereo_panner_processor_test PRIVATE musicrat_core)
     add_test(NAME musicrat.dsp.stereo_panner_processor
         COMMAND musicrat_stereo_panner_processor_test)
+
+    add_executable(musicrat_parameter_state_ui_adapter_test
+        tests/dsp/parameter_state_ui_adapter_test.cpp)
+    target_link_libraries(musicrat_parameter_state_ui_adapter_test
+        PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.parameter_state_ui_adapter
+        COMMAND musicrat_parameter_state_ui_adapter_test)
 
     add_executable(musicrat_channel_mapper_processor_test
         tests/dsp/channel_mapper_processor_test.cpp)
@@ -1034,9 +1052,9 @@ if(BUILD_TESTING)
         COMMAND musicrat_module_metadata_test)
 
     if(TARGET musicrat_launcher)
-        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 19)
+        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 20)
         if(TARGET musicrat_lvgl_widget_sink)
-            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 20)
+            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 21)
         endif()
         add_test(
             NAME musicrat.integration.install_descriptors

@@ -752,6 +752,7 @@ export function importApplication(
     (source) => source.musicrat_generated !== 'control_mapper'
       && source.musicrat_generated !== 'action_mapper'
       && source.musicrat_generated !== 'observation_adapter'
+      && source.musicrat_generated !== 'parameter_state_ui_adapter'
       && source.musicrat_generated !== 'widget_update_merger'
       && source.musicrat_generated !== 'lvgl_widget_sink'
       && source.musicrat_generated !== 'control_feedback_router')

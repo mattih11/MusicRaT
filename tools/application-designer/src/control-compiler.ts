@@ -16,6 +16,7 @@ import {
   type DesignerWorkspace,
   type MusicRaTControlProject,
   type ParameterDescriptor,
+  type SurfaceWidget,
 } from './model'
 import { compileDeckArtifacts } from './deck-compiler'
 
@@ -138,6 +139,22 @@ export interface CompiledLevelMeterUiAdapterModule {
   params: { bindings: CompiledLevelMeterObservationBinding[] }
 }
 
+export interface CompiledParameterStateUiBinding {
+  binding_id: number
+  parameter_id: number
+  surface_id: string
+  widget_id: string
+  parameter_minimum: number
+  parameter_maximum: number
+}
+
+export interface CompiledParameterStateUiAdapterModule {
+  module_id: string
+  source_module_id: string
+  surface_id: string
+  params: { bindings: CompiledParameterStateUiBinding[] }
+}
+
 export interface CompiledControlPlan {
   schema_version: 1
   owner_ids: RuntimeIdEntry[]
@@ -147,6 +164,7 @@ export interface CompiledControlPlan {
   mappers: CompiledControlMapperModule[]
   action_mappers: CompiledActionMapperModule[]
   observation_adapters: CompiledLevelMeterUiAdapterModule[]
+  parameter_state_adapters: CompiledParameterStateUiAdapterModule[]
   feedback_routers: CompiledControlFeedbackRouterModule[]
 }
 
@@ -241,6 +259,7 @@ export function compileControlPlan(
       mappers: [],
       action_mappers: [],
       observation_adapters: [],
+      parameter_state_adapters: [],
       feedback_routers: [],
     }
   }
@@ -257,9 +276,15 @@ export function compileControlPlan(
   ])
   const observationBindingIds = allocate(
     (control.observation_bindings ?? []).map((binding) => binding.id))
+  const parameterStateBindingIds = allocate(control.surfaces.flatMap((surface) =>
+    surface.target === 'lvgl'
+      ? surface.widgets.filter((widget) => widget.parameter)
+        .map((widget) => `${surface.id}\u0000${widget.id}`)
+      : []))
   const groups = new Map<string, CompiledControlMapperModule>()
   const actionGroups = new Map<string, CompiledActionMapperModule>()
   const observationGroups = new Map<string, CompiledLevelMeterUiAdapterModule>()
+  const parameterStateGroups = new Map<string, CompiledParameterStateUiAdapterModule>()
   const feedbackGroups = new Map<string, CompiledControlFeedbackRouterModule>()
 
   for (const binding of [...control.bindings].sort((left, right) => left.id.localeCompare(right.id))) {
@@ -445,9 +470,43 @@ export function compileControlPlan(
     })
   }
 
+  for (const surface of [...control.surfaces]
+    .filter((item) => item.target === 'lvgl')
+    .sort((left, right) => left.id.localeCompare(right.id))) {
+    for (const widget of [...surface.widgets]
+      .filter((item): item is SurfaceWidget & { parameter: NonNullable<SurfaceWidget['parameter']> } =>
+        item.parameter !== undefined)
+      .sort((left, right) => left.id.localeCompare(right.id))) {
+      const targetModule = workspace.modules.find(
+        (module) => module.id === widget.parameter.module_id)!
+      const parameter = parametersOf(targetModule.descriptor).find(
+        (item) => item.id === widget.parameter.parameter_id)!
+      const groupKey = `${targetModule.id}\u0000${surface.id}`
+      let group = parameterStateGroups.get(groupKey)
+      if (!group) {
+        group = {
+          module_id: `ParameterStateUiAdapter_${parameterStateGroups.size + 1}`,
+          source_module_id: targetModule.id,
+          surface_id: surface.id,
+          params: { bindings: [] },
+        }
+        parameterStateGroups.set(groupKey, group)
+      }
+      group.params.bindings.push({
+        binding_id: parameterStateBindingIds.get(`${surface.id}\u0000${widget.id}`)!,
+        parameter_id: parameter.id,
+        surface_id: surface.id,
+        widget_id: widget.id,
+        parameter_minimum: parameter.minimum,
+        parameter_maximum: parameter.maximum,
+      })
+    }
+  }
+
   const maxBindings = options.maxBindingsPerMapper ?? 256
   for (const group of [
     ...groups.values(), ...actionGroups.values(), ...observationGroups.values(),
+    ...parameterStateGroups.values(),
   ]) {
     if (group.params.bindings.length > maxBindings) {
       throw new Error(`Mapper '${group.module_id}' exceeds its binding capacity.`)
@@ -467,6 +526,7 @@ export function compileControlPlan(
     mappers: [...groups.values()],
     action_mappers: [...actionGroups.values()],
     observation_adapters: [...observationGroups.values()],
+    parameter_state_adapters: [...parameterStateGroups.values()],
     feedback_routers: [...feedbackGroups.values()],
   }
 }
@@ -518,7 +578,8 @@ export function compileLaunchApplication(
   const application = compileApplication(workspace)
   const plan = compileControlPlan(workspace, options)
   if (plan.mappers.length === 0 && plan.action_mappers.length === 0
-      && plan.observation_adapters.length === 0) return application
+      && plan.observation_adapters.length === 0
+      && plan.parameter_state_adapters.length === 0) return application
 
   for (const device of workspace.source.musicrat_control?.devices ?? []) {
     if (!device.adapter_module_id) continue
@@ -562,6 +623,13 @@ export function compileLaunchApplication(
       )
     }
   }
+  for (const adapter of plan.parameter_state_adapters) {
+    if (moduleNames.has(adapter.module_id)) {
+      throw new Error(
+        `Generated parameter-state adapter name '${adapter.module_id}' conflicts with a module.`,
+      )
+    }
+  }
 
   for (const router of plan.feedback_routers) {
     if (moduleNames.has(router.module_id)) {
@@ -595,7 +663,9 @@ export function compileLaunchApplication(
         (mapper) => mapper.source_owner_id === display.surface_id)
     const hasObservations = plan.observation_adapters.some(
       (adapter) => adapter.surface_id === display.surface_id)
-    if (!hasControl && !hasObservations) continue
+    const hasParameterState = plan.parameter_state_adapters.some(
+      (adapter) => adapter.surface_id === display.surface_id)
+    if (!hasControl && !hasObservations && !hasParameterState) continue
     if (nextInstance > 255) {
       throw new Error('Generated LVGL control addresses exceed uint8 capacity.')
     }
@@ -774,15 +844,48 @@ export function compileLaunchApplication(
       params: adapter.params,
     })
   }
+  for (const adapter of plan.parameter_state_adapters) {
+    if (nextInstance > 255) {
+      throw new Error('Generated parameter-state adapter addresses exceed uint8 capacity.')
+    }
+    const targetModule = application.modules.find(
+      (module) => module.name === adapter.source_module_id)!
+    const statePortIndex = onlyPortIndex(
+      workspace, adapter.source_module_id, 'output', parameterStatePayload)
+    const sourceAddress = targetModule.outputs?.[statePortIndex]
+    if (!sourceAddress) {
+      throw new Error(
+        `Parameter-state source '${adapter.source_module_id}' has no output address.`,
+      )
+    }
+    const outputAddress: Address = { system_id: 10, instance_id: nextInstance++ }
+    generated.push({
+      name: adapter.module_id,
+      module_class: 'MusicRaTParameterStateUiAdapter',
+      musicrat_generated: 'parameter_state_ui_adapter',
+      outputs: [outputAddress],
+      inputs: [{
+        source_system_id: sourceAddress.system_id,
+        source_instance_id: sourceAddress.instance_id,
+      }],
+      params: adapter.params,
+    })
+  }
   let mergerIndex = 1
   for (const [displayIndex, display] of (deckArtifacts?.lvgl.displays ?? []).entries()) {
-    const lvglAdapters = plan.observation_adapters.filter(
-      (adapter) => adapter.surface_id === display.surface_id)
-    if (lvglAdapters.length === 0) continue
+    const uiUpdateAdapters = [
+      ...plan.observation_adapters
+        .filter((adapter) => adapter.surface_id === display.surface_id)
+        .map((adapter) => adapter.module_id),
+      ...plan.parameter_state_adapters
+        .filter((adapter) => adapter.surface_id === display.surface_id)
+        .map((adapter) => adapter.module_id),
+    ]
+    if (uiUpdateAdapters.length === 0) continue
 
     let sourceAddress = generated.find(
-      (module) => module.name === lvglAdapters[0].module_id)!.outputs![0]
-    for (const adapter of lvglAdapters.slice(1)) {
+      (module) => module.name === uiUpdateAdapters[0])!.outputs![0]
+    for (const adapterModuleId of uiUpdateAdapters.slice(1)) {
       if (nextInstance > 255) {
         throw new Error('Generated widget-update merger addresses exceed uint8 capacity.')
       }
@@ -791,7 +894,7 @@ export function compileLaunchApplication(
         throw new Error(`Generated widget-update merger name '${mergerName}' conflicts with a module.`)
       }
       const secondaryAddress = generated.find(
-        (module) => module.name === adapter.module_id)!.outputs![0]
+        (module) => module.name === adapterModuleId)!.outputs![0]
       const outputAddress: Address = { system_id: 10, instance_id: nextInstance++ }
       generated.push({
         name: mergerName,
@@ -866,6 +969,10 @@ export function compileLaunchApplication(
     module,
     ...generated.filter((generatedModule) =>
       plan.observation_adapters.some((entry) =>
+        entry.module_id === generatedModule.name
+        && entry.source_module_id === module.name)),
+    ...generated.filter((generatedModule) =>
+      plan.parameter_state_adapters.some((entry) =>
         entry.module_id === generatedModule.name
         && entry.source_module_id === module.name)),
   ]).concat(generated.filter((module) =>

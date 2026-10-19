@@ -408,6 +408,18 @@ and the clipping indicator was visible. The meter-enabled graph remains active
 on confirmed slot B with ALSA PCM `RUNNING`; its config and manifest are
 temporary files, and the installed image and config remain unchanged.
 
+The authoritative panner-state feedback path was then exercised in EVL QEMU
+and on H4. Three assertion-enabled DSP tests passed under QEMU; a routed
+oscillator/parameter-source/panner graph produced nonzero 48 kHz stereo PCM
+with a right-to-left RMS ratio of 3.08 at pan `0.6`. On H4, a 10-second
+temporary graph started and stopped the updated panner, parameter-state
+adapter, widget-update merger, LVGL sink, and ALSA sink. The LVGL sink also
+logged 1000 ms data-loop overruns against its 10 ms period, so this is runtime
+startup/routing evidence rather than a measurement of interactive display
+latency or a touch-driven state change. Temporary files were removed and the
+existing meter demo was restored on slot B with ALSA PCM `RUNNING`; no installed
+image or config was changed.
+
 ## Qualification Still Required
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was

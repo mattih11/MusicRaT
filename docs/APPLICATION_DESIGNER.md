@@ -253,14 +253,20 @@ bindings by declared source port and materializes
 events with stable surface, widget, property, and binding IDs. Other telemetry
 or status payload families remain explicitly unsupported until they have their
 own typed adapter. Adapters are partitioned by source port and target surface.
+Widgets that reference a parameter also receive a
+`MusicRaTParameterStateUiAdapter` route from that module's authoritative
+`ParameterStateBlock` output. This keeps a display synchronized when another
+control source changes the parameter, without turning feedback updates into
+new control events.
 The Designer exports the compiled LVGL manifest separately from launch JSON
 using the sibling `<application>.lvgl.json` filename. Strict launch export
 materializes one `MusicRaTLvglWidgetSink` for each LVGL display participating in
-controls or observations and selects the exact display instance. The sink is a
-periodic semantic `ControlEventBlock` source for that surface's slider, knob,
-toggle, and button endpoints. Stable compiled device, endpoint, origin, and
-kind IDs are injected into its widget bindings, and generated control mappers
-subscribe to its output. Observation updates use the sink's synchronized input.
+controls, observations, or parameter-state feedback and selects the exact
+display instance. The sink is a periodic semantic `ControlEventBlock` source
+for that surface's slider, knob, toggle, and button endpoints. Stable compiled
+device, endpoint, origin, and kind IDs are injected into its widget bindings,
+and generated control mappers subscribe to its output. Observation and
+parameter-state updates use the sink's synchronized input.
 When several adapters target one display, generated bounded
 `MusicRaTWidgetUpdateMerger` modules combine them in a deterministic chain
 before the sink. The generated sinks default to the headless backend;
