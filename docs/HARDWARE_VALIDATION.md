@@ -377,14 +377,39 @@ does not prove the original click was a one-off or qualify every startup path
 or the unmodified interactive demo. The gain/pan demo was restarted after the
 test and its PCM is `RUNNING`.
 
+The normal interactive demo was then cold-restarted three times for listening.
+The operator reported no click on starts one and two, and one onset click on
+start three. Backend-level fades were considered but not retained: an
+oscillator amplitude envelope is the more appropriate place to smooth an
+intentional signal start, while an output sink should not conceal source
+discontinuities.
+
+During subsequent operation, the operator also reported audible artifacts when
+moving either the gain or pan slider quickly. The live demo config used
+64-sample ramps (about 1.3 ms at 48 kHz). Both demo config sources now use
+480-sample ramps (10 ms at 48 kHz) for the next listening check; this setting
+has not been deployed to the H4.
+
+On 2026-10-19, the H4 demo was restarted with a temporary copy of its installed
+config, changing only the gain and pan smoothing values to 480 samples. The
+operator quickly moved both controls and reported both sounded clean or clearly
+improved. The demo remains active on confirmed slot B with ALSA PCM `RUNNING`;
+the temporary runtime config is under `/tmp`, and no image or installed config
+was changed. This is a single subjective listening check, not a claim that all
+possible control-motion artifacts are eliminated.
+
 ## Qualification Still Required
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was
   made, so establish an attended recovery plan first.
 - Verify queue occupancy over multi-hour operation and more extreme clock
   offsets.
-- Repeat subjective checks of the live oscillator through correction changes
-  and repeated cold starts, watching specifically for onset clicks.
+- Evolve the simple oscillator into a synth voice with note input and an
+  integrated ADSR envelope, then repeat the cold-start listening check; the
+  intermittent demo onset click remains unresolved.
+- Listen for rapid gain/pan slider artifacts with the 10 ms demo ramps on the
+  H4 under longer use before deciding whether further smoothing changes are
+  needed.
 - Measure physical end-to-end latency and jitter with documented methods.
 - Test disconnect/reconnect and orderly shutdown/restart.
 

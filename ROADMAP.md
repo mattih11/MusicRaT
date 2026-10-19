@@ -334,7 +334,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
 - [x] Bring the oscillator onto the finalized audio block and parameter contracts
 - [ ] Add pulse width, tuning, detune, and anti-aliased oscillator variants
 - [ ] Add wavetable oscillator with bounded table storage
-- [ ] Add ADSR envelope module
+- [ ] Evolve the simple oscillator into a synth voice with note input and an integrated ADSR envelope
 - [ ] Add LFO and modulation messages
 - [ ] Add polyphonic voice allocator with note stealing
 - [ ] Three-oscillator subtractive synthesizer instrument
