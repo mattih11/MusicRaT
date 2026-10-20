@@ -10,6 +10,8 @@ if(MODE STREQUAL "invalid")
         "--clock-offset-ppm;1001"
         "--clock-offset-ppm;-1001"
         "--clock-offset-ppm;invalid"
+        "--blocks;8640001"
+        "--blocks;100000;--jitter-ms;1000;--jitter-every;1"
         "--unknown;1"
         "--blocks")
         execute_process(COMMAND "${PROBE}" ${arguments}
@@ -19,7 +21,7 @@ if(MODE STREQUAL "invalid")
         endif()
     endforeach()
 elseif(MODE STREQUAL "null")
-    execute_process(COMMAND "${PROBE}" --device null --blocks 10
+    execute_process(COMMAND "${PROBE}" --device null --blocks 210
         --clock-offset-ppm 100
         RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error
         TIMEOUT 10)
@@ -41,6 +43,14 @@ elseif(MODE STREQUAL "null")
             message(FATAL_ERROR "Missing queue metric ${field}: ${output}")
         endif()
     endforeach()
+    string(JSON telemetry_interval GET "${output}" telemetry_interval_ns)
+    string(JSON telemetry_count LENGTH "${output}" telemetry_samples)
+    string(JSON telemetry_overflow GET "${output}" telemetry_overflow)
+    if(NOT telemetry_interval STREQUAL "1000000000"
+       OR telemetry_overflow
+       OR telemetry_count LESS 2)
+        message(FATAL_ERROR "Probe did not produce a bounded telemetry timeline: ${output}")
+    endif()
     string(JSON queued_end GET "${output}" queued_frames_at_end)
     string(JSON queue_high_water GET "${output}" queue_high_water_frames)
     string(JSON queue_capacity GET "${output}" queue_capacity_frames)
@@ -54,8 +64,41 @@ elseif(MODE STREQUAL "null")
        OR maximum_rate_correction GREATER 500)
         message(FATAL_ERROR "Rate correction exceeded its +/-500 ppm bound: ${output}")
     endif()
+    set(previous_elapsed -1)
+    set(previous_block_sequence -1)
+    set(previous_rejected_blocks 0)
+    set(previous_underruns 0)
+    set(previous_missing_frames 0)
+    set(previous_stream_failures 0)
+    math(EXPR last_sample "${telemetry_count} - 1")
+    foreach(index RANGE 0 ${last_sample})
+        string(JSON sample_elapsed GET "${output}" telemetry_samples ${index} elapsed_ns)
+        string(JSON sample_block_sequence GET "${output}" telemetry_samples ${index} block_sequence)
+        string(JSON sample_queue GET "${output}" telemetry_samples ${index} queued_frames)
+        string(JSON sample_correction GET "${output}" telemetry_samples ${index} rate_correction_ppm)
+        string(JSON sample_rejected GET "${output}" telemetry_samples ${index} rejected_blocks)
+        string(JSON sample_underruns GET "${output}" telemetry_samples ${index} underruns)
+        string(JSON sample_missing GET "${output}" telemetry_samples ${index} missing_frames)
+        string(JSON sample_stream_failures GET "${output}" telemetry_samples ${index} stream_failures)
+        if(sample_elapsed LESS_EQUAL previous_elapsed
+           OR sample_block_sequence LESS_EQUAL previous_block_sequence
+           OR sample_queue GREATER queue_capacity
+           OR sample_correction LESS -500 OR sample_correction GREATER 500
+           OR sample_rejected LESS previous_rejected_blocks
+           OR sample_underruns LESS previous_underruns
+           OR sample_missing LESS previous_missing_frames
+           OR sample_stream_failures LESS previous_stream_failures)
+            message(FATAL_ERROR "Probe telemetry sample was invalid or not monotonic: ${output}")
+        endif()
+        set(previous_elapsed "${sample_elapsed}")
+        set(previous_block_sequence "${sample_block_sequence}")
+        set(previous_rejected_blocks "${sample_rejected}")
+        set(previous_underruns "${sample_underruns}")
+        set(previous_missing_frames "${sample_missing}")
+        set(previous_stream_failures "${sample_stream_failures}")
+    endforeach()
     foreach(pair IN ITEMS
-        "blocks;10" "channels;1" "backend;alsa" "clock_offset_ppm;100")
+        "blocks;210" "channels;1" "backend;alsa" "clock_offset_ppm;100")
         list(GET pair 0 field)
         list(GET pair 1 expected)
         string(JSON value GET "${output}" "${field}")

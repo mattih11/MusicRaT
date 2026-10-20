@@ -7,13 +7,29 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <limits>
 #include <string_view>
+#include <vector>
 
 namespace {
+
+constexpr uint64_t telemetry_interval_ns = 1'000'000'000ULL;
+constexpr uint64_t maximum_probe_duration_seconds = 24 * 60 * 60;
+
+struct TelemetrySample {
+    uint64_t elapsed_ns{0};
+    uint64_t block_sequence{0};
+    uint64_t queued_frames{0};
+    int32_t rate_correction_ppm{0};
+    uint64_t rejected_blocks{0};
+    uint64_t underruns{0};
+    uint64_t missing_frames{0};
+    uint64_t stream_failures{0};
+};
 
 struct Options {
     const char* device{""};
@@ -27,6 +43,19 @@ struct Options {
     uint32_t jitter_every{37};
     int32_t clock_offset_ppm{0};
 };
+
+long double estimated_duration_seconds(
+    uint64_t total_frames, const Options& options) {
+    const long double producer_rate_scale =
+        1'000'000.0L + options.clock_offset_ppm;
+    const long double nominal_seconds =
+        static_cast<long double>(total_frames) / options.rate;
+    const uint64_t jitter_count =
+        (static_cast<uint64_t>(options.blocks) + options.jitter_every - 1)
+        / options.jitter_every;
+    return nominal_seconds * 1'000'000.0L / producer_rate_scale
+        + static_cast<long double>(jitter_count) * options.jitter_ms / 1000.0L;
+}
 
 bool parse(int argc, char** argv, Options& options) {
     for (int i = 1; i < argc; ++i) {
@@ -82,6 +111,13 @@ bool parse(int argc, char** argv, Options& options) {
         std::fprintf(stderr, "Invalid format, block count, or jitter (maximum 1000 ms)\n");
         return false;
     }
+    const uint64_t total_frames =
+        static_cast<uint64_t>(options.blocks) * options.frames;
+    if (estimated_duration_seconds(total_frames, options)
+        > maximum_probe_duration_seconds) {
+        std::fprintf(stderr, "Probe duration exceeds the 24-hour telemetry bound\n");
+        return false;
+    }
     return true;
 }
 
@@ -113,6 +149,13 @@ int run(int argc, char** argv) {
     uint64_t rejected = 0;
     uint64_t elapsed_ns = 0;
     uint64_t maximum_lateness_ns = 0;
+    const uint64_t total_frames =
+        static_cast<uint64_t>(options.blocks) * options.frames;
+    const std::size_t telemetry_capacity = static_cast<std::size_t>(
+        std::ceil(estimated_duration_seconds(total_frames, options)) + 2);
+    std::vector<TelemetrySample> telemetry_samples(telemetry_capacity);
+    std::size_t telemetry_count = 0;
+    bool telemetry_overflow = false;
     bool attached = true;
     corerat::Thread producer{[&] {
 #if defined(CORERAT_PLATFORM_EVL)
@@ -132,8 +175,7 @@ int run(int argc, char** argv) {
         double phase = 0;
         const uint64_t fade_frames =
             static_cast<uint64_t>(options.rate) * 20 / 1000;
-        const uint64_t total_frames =
-            static_cast<uint64_t>(options.blocks) * options.frames;
+        uint64_t next_telemetry_elapsed_ns = 0;
         for (uint32_t index = 0; index < options.blocks; ++index) {
             const auto deadline = start + static_cast<uint64_t>(index) * period_ns;
             corerat::Time::sleep_until(deadline);
@@ -165,6 +207,26 @@ int run(int argc, char** argv) {
                 }
             }
             rejected += !backend->write(block);
+            const uint64_t elapsed = corerat::Time::now() - start;
+            if (elapsed >= next_telemetry_elapsed_ns) {
+                if (telemetry_count >= telemetry_samples.size()) {
+                    telemetry_overflow = true;
+                    continue;
+                }
+                telemetry_samples[telemetry_count++] = {
+                    .elapsed_ns = elapsed,
+                    .block_sequence = index,
+                    .queued_frames = backend->queued_frames(),
+                    .rate_correction_ppm = backend->rate_correction_ppm(),
+                    .rejected_blocks = rejected,
+                    .underruns = backend->underrun_count(),
+                    .missing_frames = backend->underrun_frame_count(),
+                    .stream_failures = backend->stream_failure_count(),
+                };
+                next_telemetry_elapsed_ns =
+                    (elapsed / telemetry_interval_ns + 1)
+                    * telemetry_interval_ns;
+            }
         }
         elapsed_ns = corerat::Time::now() - start;
     }};
@@ -202,7 +264,9 @@ int run(int argc, char** argv) {
         "\"underruns\":%llu,\"missing_frames\":%llu,\"stream_failures\":%llu,"
         "\"queued_frames_at_end\":%llu,\"queue_high_water_frames\":%llu,"
         "\"queue_capacity_frames\":%llu,\"current_rate_correction_ppm\":%d,"
-        "\"maximum_rate_correction_ppm\":%u}\n",
+        "\"maximum_rate_correction_ppm\":%u,\"telemetry_overflow\":%s,"
+        "\"telemetry_interval_ns\":%llu,"
+        "\"telemetry_samples\":[",
         backend->name(), platform, options.rate, options.channels, options.frames,
         options.blocks, options.jitter_ms, options.jitter_every,
         static_cast<int>(options.clock_offset_ppm),
@@ -216,10 +280,31 @@ int run(int argc, char** argv) {
         static_cast<unsigned long long>(queue_high_water_frames),
         static_cast<unsigned long long>(queue_capacity_frames),
         static_cast<int>(rate_correction_ppm),
-        static_cast<unsigned>(maximum_rate_correction_ppm));
+        static_cast<unsigned>(maximum_rate_correction_ppm),
+        telemetry_overflow ? "true" : "false",
+        static_cast<unsigned long long>(telemetry_interval_ns));
+    for (std::size_t index = 0; index < telemetry_count; ++index) {
+        const auto& sample = telemetry_samples[index];
+        std::printf(
+            "%s{\"elapsed_ns\":%llu,\"block_sequence\":%llu,"
+            "\"queued_frames\":%llu,\"rate_correction_ppm\":%d,"
+            "\"rejected_blocks\":%llu,\"underruns\":%llu,"
+            "\"missing_frames\":%llu,\"stream_failures\":%llu}",
+            index == 0 ? "" : ",",
+            static_cast<unsigned long long>(sample.elapsed_ns),
+            static_cast<unsigned long long>(sample.block_sequence),
+            static_cast<unsigned long long>(sample.queued_frames),
+            static_cast<int>(sample.rate_correction_ppm),
+            static_cast<unsigned long long>(sample.rejected_blocks),
+            static_cast<unsigned long long>(sample.underruns),
+            static_cast<unsigned long long>(sample.missing_frames),
+            static_cast<unsigned long long>(sample.stream_failures));
+    }
+    std::puts("]}");
     return rejected == 0 && underruns == 0 && missing_frames == 0 && failures == 0
             && queued_frames <= queue_capacity_frames
             && queue_high_water_frames <= queue_capacity_frames
+            && !telemetry_overflow
         ? 0
         : 1;
 }

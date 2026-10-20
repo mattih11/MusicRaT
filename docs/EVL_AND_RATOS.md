@@ -218,13 +218,23 @@ The concurrent consumer may advance between snapshots, so the admission-side
 high-water value can conservatively overstate instantaneous occupancy; it is
 bounded by ring capacity. The probe stops after the requested block count and
 drops any final queued pre-roll when closing; it is not an end-of-stream drain
-test. `current_rate_correction_ppm` and `maximum_rate_correction_ppm` report the
-backend's queue-feedback rate adjustment; it is bounded to +/-500 ppm. A
-nonzero exit status means invalid input, backend/producer failure, rejected
-blocks, underruns, or impossible queue metrics. Producer lateness includes
-deliberately injected jitter and is not hardware latency. Record negotiated PCM
-geometry separately from requested values, for example from
-`/proc/asound/card*/pcm*p/sub*/hw_params` while running.
+test. `telemetry_samples` contains bounded, approximately one-second snapshots
+with elapsed nanoseconds, producer block sequence, queue depth, current rate
+correction, and cumulative rejected-block, underrun, missing-frame, and stream
+failure counters. Sampling occurs on the producer thread after a block write;
+timestamps are observational and do not pinpoint an ALSA event more precisely
+than the sampling interval. `current_rate_correction_ppm` and
+`maximum_rate_correction_ppm` report the backend's queue-feedback rate
+adjustment; it is bounded to +/-500 ppm. The probe rejects durations exceeding
+24 hours, accounting for the requested producer clock offset and injected
+jitter, so its telemetry storage remains bounded. Unexpected runtime delays
+that exhaust the preallocated telemetry samples set `telemetry_overflow` and
+fail the probe. A nonzero exit status means invalid input, backend/producer
+failure, rejected blocks, underruns, telemetry overflow, or impossible queue
+metrics. Producer lateness includes deliberately injected jitter and is not
+hardware latency. Record negotiated PCM geometry separately from requested
+values, for example from `/proc/asound/card*/pcm*p/sub*/hw_params` while
+running.
 
 Do not interrupt a live demo for automated testing without approval. CPU/I/O
 stress with the new queue metrics, producer/device clock-skew measurement,
