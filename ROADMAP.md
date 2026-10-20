@@ -193,8 +193,9 @@ remain deferred until their runtime ownership contracts are defined.
   - [x] Test positive and negative 100 ppm producer offsets for five minutes each on H4; zero queue rejects or underruns
   - [~] Verify bounded long-duration queue occupancy and correction behavior without hiding dropped or repeated samples
     - [x] Collect one-hour +100/-100 ppm H4 probe results; record queue metrics, correction saturation, and underruns
-    - [ ] Add time-correlated queue-depth, correction, and ALSA-underrun diagnostics to the probe
-    - [ ] Resolve the observed underruns and +/-500 ppm correction saturation, then repeat long-duration runs
+    - [x] Add bounded time-correlated queue-depth, correction, and ALSA-underrun diagnostics to the probe
+    - [x] Repeat one-hour +/-100 ppm H4 runs with telemetry; neither the earlier underruns nor correction saturation reproduced
+    - [ ] Investigate the discrepancy, capture negotiated PCM geometry, and repeat controlled long-duration runs before closing the stability gate
 - [ ] Complete the H4 display feedback loop
   - [x] Add live peak/RMS/clipping meters to the gain/pan screen
   - [x] Compile authoritative gain and pan parameter state into LVGL widget updates, merged with meter observations and covered by a second-source compiler fixture
@@ -659,7 +660,7 @@ Record decisions here before their dependent phase begins.
 | Internal sample type | CMake-selected `float` or `double`; default `float` | Decided |
 | Channel storage | Planar fixed-capacity block | Decided |
 | Audio capacities | CMake-generated application-wide constants | Decided |
-| Scheduling model | Absolute platform-clock module deadlines plus bounded output-sink adaptive resampling | Physical clock-offset and audio-quality qualification pending |
+| Scheduling model | Absolute platform-clock module deadlines plus bounded output-sink adaptive resampling | Earlier one-hour offset failures were not reproduced with telemetry; discrepancy and physical audio-quality qualification remain open |
 | Media decode boundary | In-band decoder worker feeding preallocated PCM chunks to the real-time renderer | Decided |
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
 | Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |

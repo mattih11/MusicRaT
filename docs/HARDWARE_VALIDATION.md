@@ -391,6 +391,39 @@ dirty. After each run, the gain/pan demo was relaunched and verified active
 with PCM `RUNNING`; the EVL router remained active. No installed binary,
 configuration, or image was changed.
 
+## Telemetry Follow-up to One-Hour Clock-Offset Tests (2026-10-20)
+
+After adding bounded one-second queue/correction/counter samples, the operator
+approved repeating both one-hour H4 producer-offset tests. The EVL/ALSA probe
+was built from MusicRaT `c343ffa`; it requested `plughw:0,0`, 48 kHz stereo,
+480-frame blocks, and 360,000 blocks, with no external load or injected
+jitter. The physical ALSA negotiated period and buffer sizes were not captured
+during these repeat runs. The telemetry produced 3,600 samples for +100 ppm
+and 3,601 for -100 ppm, with monotonic timestamps and no sample overflow.
+
+| Producer offset | Elapsed | Max producer lateness | Rejected / underruns / missing frames / failures | Queue high-water / end / capacity | Max correction | Final correction |
+| --- | --- | --- | --- | --- | --- | --- |
+| +100 ppm | 3599.630 s | 17,764 ns | 0 / 0 / 0 / 0 | 2,670 / 2,295 / 16,384 frames | 313 ppm | -26 ppm |
+| -100 ppm | 3600.350 s | 12,570 ns | 0 / 0 / 0 / 0 | 1,920 / 1,470 / 16,384 frames | 353 ppm | -232 ppm |
+
+Neither run reached the +/-500 ppm correction limit. The sampled corrections
+ranged from -311 to +65 ppm during the +100 ppm run and -350 to 0 ppm during
+the -100 ppm run. No sample reported a rejected block, underrun, missing frame,
+or stream failure. Thus, the earlier one-hour result with three underruns and
+correction saturation at both offsets was not reproduced. The available
+telemetry does not explain the difference, and these clean repeats do not erase
+the earlier failures or establish sustained clock stability. Preserve the
+bounded correction policy and investigate the discrepancy before closing the
+qualification gate.
+
+The gain/pan demo was stopped for each run and restored after it. After the
+second run, the demo service was active and the PCM reported `RUNNING`. The
+temporary probe and result files were removed from H4; no installed binary,
+configuration, or image was changed. The machine-readable timelines were
+retained in the session validation artifacts. These controlled producer-offset
+tests are not measurements of the physical oscillator-clock difference or
+subjective audio quality.
+
 ## Listening Check (2026-10-19)
 
 The operator approved three 30-second probe segments: nominal cadence, +100 ppm,
@@ -457,8 +490,10 @@ image or config was changed.
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was
   made, so establish an attended recovery plan first.
-- Resolve correction saturation and underruns observed during the one-hour
-  +/-100 ppm H4 runs, then repeat long-duration validation.
+- Investigate why the earlier one-hour H4 runs saturated correction and
+  underrun while the telemetry-enabled repeats did not; capture negotiated PCM
+  geometry and repeat under controlled conditions before closing the
+  clock-stability gate.
 - Evolve the simple oscillator into a synth voice with note input and an
   integrated ADSR envelope, then repeat the cold-start listening check; the
   intermittent demo onset click remains unresolved.
