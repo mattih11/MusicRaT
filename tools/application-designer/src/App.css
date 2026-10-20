@@ -610,6 +610,8 @@ button { border: 0; cursor: pointer; }
 .count { display: grid; place-items: center; width: 27px; height: 27px; background: #e2e7e2; font: 500 12px 'DM Mono', monospace; }
 .search { display: flex; align-items: center; gap: 8px; height: 35px; margin: 12px; padding: 0 10px; background: white; border: 1px solid var(--line); color: var(--muted); }
 .search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; font-size: 12px; }
+.module-picker-advanced { display: flex; align-items: center; gap: 7px; margin: 0 12px 10px; color: var(--muted); font-size: 10px; }
+.module-picker-advanced input { margin: 0; accent-color: var(--forest); }
 .catalog-list { padding: 0 8px; }
 .catalog-item { width: 100%; min-height: 58px; padding: 10px; display: flex; align-items: center; justify-content: space-between; text-align: left; background: transparent; border-bottom: 1px solid #dde2df; }
 .catalog-item:hover { background: white; }

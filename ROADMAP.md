@@ -12,6 +12,7 @@ Media decoding, performance playback, recording, and live-device boundaries are 
 - [x] Complete
 - [ ] Planned
 - [~] In progress
+- [D] Deferred
 
 ## Current Baseline
 
@@ -31,7 +32,7 @@ Media decoding, performance playback, recording, and live-device boundaries are 
 - [~] Automated tests and benchmarks
 - [~] Multi-channel audio block contract
 - [~] Audio graph lifecycle and validation
-- [~] Hardware audio, MIDI, and RatGUI integration
+- [~] Hardware audio, MIDI, and LVGL integration
 
 ## Architecture Principles
 
@@ -128,7 +129,7 @@ Streaming control signals such as knob motion, gates, note events, and automatio
 - [ ] Decide whether production configs use JSON only or whether `ProcessLauncher` should gain the YAML support available in the in-process launcher
 - [x] Add schema-versioned stable physical port IDs and labels in MusicRaT descriptor metadata while preserving positional CommRaT routes
 - [~] Have the Application Designer edit/save the CommRaT application description and preserve unknown module-specific `params`
-- [ ] Have RatGUI launch as a configured `companion`, receiving the same application description path
+- [D] Have RatGUI launch as a configured `companion`, receiving the same application description path
 - [ ] Define safe runtime graph-edit behavior; the current launcher topology is startup-time configuration
 
 ### Required Example Launch Configs
@@ -139,10 +140,11 @@ Streaming control signals such as knob motion, gates, note events, and automatio
 - [ ] `mixer.json`: multiple sources -> fixed-capacity mixer -> limiter -> sink
 - [ ] `midi_synth.json`: MIDI input -> voice/instrument control input, instrument audio -> sink
 - [~] `controlled_gain.json`: virtual semantic source -> mapper -> gain -> loop-suppressed virtual endpoint feedback is implemented; simulated hardware remains
-- [ ] `ratgui_session.json`: an audio graph plus RatGUI companion and telemetry routes
+- [D] `ratgui_session.json`: an audio graph plus RatGUI companion and telemetry routes
 - [ ] `offline_render.json`: musical/file source -> processing graph -> WAV sink
 - [~] Add short-duration CTest smoke runs for every headless launch config
-- [ ] Add schema/descriptor validation tests for launch configs that require hardware or RatGUI
+- [ ] Add schema/descriptor validation tests for launch configs that require hardware
+- [D] Add schema/descriptor validation tests for launch configs that require RatGUI
 
 ## Application Designer Foundation
 
@@ -150,6 +152,8 @@ Stabilize [the application designer architecture](docs/APPLICATION_DESIGNER.md)
 before implementing further DSP modules. The implementation remains generic,
 while the primary product is a simple visual tool for assembling an audio
 application, its hardware and GUI controls, and its presentation surfaces.
+
+- [x] Simplify the module picker to prioritize user-facing modules, keep implementation-only adapters out of the default selection, and ensure binding diagrams and dropdowns expose the same valid targets
 
 **Next implementation focus:** stabilize the working Odroid H4 gain/pan
 oscillator before extending the DSP toolbox. The physical display, touchscreen,
@@ -188,10 +192,13 @@ remain deferred until their runtime ownership contracts are defined.
   - [x] Add deterministic +/-100 ppm FIFO skew simulation with overflow, underflow/rebuffer, and nominal-rate recovery coverage; run native and EVL on H4
   - [x] Test positive and negative 100 ppm producer offsets for five minutes each on H4; zero queue rejects or underruns
   - [~] Verify bounded long-duration queue occupancy and correction behavior without hiding dropped or repeated samples
+    - [x] Collect one-hour +100/-100 ppm H4 probe results; record queue metrics, correction saturation, and underruns
+    - [ ] Add time-correlated queue-depth, correction, and ALSA-underrun diagnostics to the probe
+    - [ ] Resolve the observed underruns and +/-500 ppm correction saturation, then repeat long-duration runs
 - [ ] Complete the H4 display feedback loop
   - [x] Add live peak/RMS/clipping meters to the gain/pan screen
   - [x] Compile authoritative gain and pan parameter state into LVGL widget updates, merged with meter observations and covered by a second-source compiler fixture
-  - [ ] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
+  - [D] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
 - [ ] Extend the processing channel after the stabilization gates
   - [ ] Compose the configurable channel strip from existing mapper, gain, and panner kernels
   - [ ] Add DC blocking, then stable biquads/filters and parametric EQ
@@ -249,7 +256,7 @@ remain deferred until their runtime ownership contracts are defined.
     - [x] Render fader and choice widgets
   - [x] Emit semantic control/action events from configured interactive on-screen widgets
   - [~] H4 touchscreen gain/pan interaction works; qualify input on the updated pinned image
-  - [ ] Subscribe and render widget updates in RatGUI
+  - [D] Subscribe and render widget updates in RatGUI
 - [~] Extend project validation and round-trip persistence for bindings and presentation state
   - [x] Validate and preserve devices, endpoints, parameter/action/observation bindings, transforms, surfaces, and widgets
   - [x] Add a designer editor for bindings, transforms, pickup, and feedback endpoints
@@ -265,7 +272,7 @@ remain deferred until their runtime ownership contracts are defined.
     - [x] Discover, validate, and serve installed descriptors
     - [x] Add revision-aware atomic project writes in the local host
   - [ ] Define a future handoff to an external launcher/controller after runtime ownership and failure-recovery semantics are specified; the designer does not directly own application lifecycle today
-- [ ] Prove one RatGUI surface and one LVGL surface against the same project fixture, including live observations
+- [D] Prove one RatGUI surface and one LVGL surface against the same project fixture, including live observations
 - [ ] Prove virtual and simulated hardware knobs can control one gain parameter with feedback
 - [ ] Implement host-side ESP32 and MIDI adapter modules against the shared semantic endpoint contract
 
@@ -295,7 +302,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
 - [ ] Low-pass, high-pass, band-pass, notch, all-pass, low-shelf, and high-shelf filters
 - [ ] Parametric EQ band
 - [ ] Multi-band EQ with bounded compile-time maximum band count
-- [ ] Filter response data for RatGUI visualization
+- [D] Filter response data for RatGUI visualization
 - [ ] State-variable filter for modulation-heavy use cases
 
 ### Dynamics
@@ -452,18 +459,18 @@ A binding is persistent graph data from one control endpoint to one target param
 
 ### Graphical Routing
 
-- [ ] Represent devices as graph nodes with named, typed endpoint ports
+- [D] Represent devices as graph nodes with named, typed endpoint ports in RatGUI
 - [x] Represent module parameters as connectable control ports without cluttering the default audio graph
-- [ ] Provide audio, note, control, transport, and telemetry layers or filters in RatGUI
-- [ ] Use domain-specific port styling and show compatibility before a connection is made
-- [ ] Insert an editable mapping node when a route needs scaling, curves, gating, or mode conversion
+- [D] Provide audio, note, control, transport, and telemetry layers or filters in RatGUI
+- [D] Use domain-specific port styling and show compatibility before a connection is made in RatGUI
+- [D] Insert an editable mapping node when a route needs scaling, curves, gating, or mode conversion in RatGUI
 - [~] Add control-learn mode: select a target, move hardware, preview the mapping, then confirm
   - [x] Add simulated semantic observations, compatibility inference, preview, and confirmation
   - [ ] Accept live observations from an external launcher/controller
-- [ ] Show live values, event activity, clipping/out-of-range state, connection health, and the effective transformed value
-- [ ] Clearly display missing hardware while retaining its routes and settings
-- [ ] Make route creation, deletion, and mapping edits undoable and session-persistent
-- [ ] Provide a compact performance view for chosen controls in addition to the full graph editor
+- [D] Show live values, event activity, clipping/out-of-range state, connection health, and the effective transformed value in RatGUI
+- [D] Clearly display missing hardware while retaining its routes and settings in RatGUI
+- [D] Make route creation, deletion, and mapping edits undoable and session-persistent in RatGUI
+- [D] Provide a compact performance view for chosen controls in addition to the full RatGUI graph editor
 
 ## Phase 4: Control Hardware, Keyboard, and MIDI
 
@@ -516,9 +523,9 @@ RatGUI has audio-device status and settings surfaces that can consume them.
 
 ## Phase 6: RatGUI and LVGL Visualization and Control
 
-Both renderers consume the shared project, surface schema, snapshots, and commands. Neither may read mutable DSP state directly or block the audio path. RatGUI is the full application/graph designer; LVGL is initially the efficient on-device performance and status surface.
+Both renderers consume the shared project, surface schema, snapshots, and commands. Neither may read mutable DSP state directly or block the audio path. RatGUI is the full application/graph designer; LVGL is initially the efficient on-device performance and status surface. RatGUI implementation is deferred; shared infrastructure and LVGL work remain active.
 
-- [ ] Confirm RatGUI APIs, threading model, rendering backend, and dependency integration
+- [D] Confirm RatGUI APIs, threading model, rendering backend, and dependency integration
 - [~] Confirm LVGL version, display/input drivers, threading boundary, and RaTOS integration
   - [x] Add an optional LVGL 9 widget renderer with headless object-level validation
   - [x] Add a bounded SPSC handoff from message callbacks to the LVGL thread
@@ -526,23 +533,23 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
   - [~] DRM/KMS and touchscreen gain/pan interaction verified on H4 with development audio binaries; pinned-image qualification remains
 - [x] Implement shared renderer-neutral surface loading and capability validation
 - [ ] Define bounded UI snapshot messages and configurable publication rates
-- [ ] Module browser with lifecycle and health state
-- [ ] Graph view with typed ports, connections, and validation feedback
-- [ ] Shared parameter controls with units, ranges, defaults, and automation indication
+- [D] Module browser with lifecycle and health state in RatGUI
+- [D] Graph view with typed ports, connections, and validation feedback in RatGUI
+- [D] Shared parameter controls with units, ranges, defaults, and automation indication in RatGUI
 - [~] External-device browser, binding editor, control learn, and feedback configuration
   - [x] Add binding, transform, pickup, and feedback configuration
   - [x] Generate designed-deck devices and semantic endpoints from placed components
   - [x] Add endpoint capabilities and transport-neutral simulated control learn
   - [ ] Add external observation handoff for live ESP32 and MIDI learn
-- [ ] Oscilloscope with decimated waveform snapshots
-- [ ] Spectrum analyzer with FFT performed outside the audio callback
-- [ ] Peak/RMS meters and clipping indicators
-- [ ] Filter/EQ response editor and visualization
-- [ ] Compressor transfer curve, envelope, and gain-reduction views
-- [ ] Mixer strips with gain, pan, mute, solo, routing, and meters
-- [ ] Piano keyboard and MIDI activity monitor
-- [ ] Audio/MIDI device settings and diagnostics
-- [ ] Persist and restore graph layout and module settings
+- [D] RatGUI oscilloscope view with decimated waveform snapshots
+- [ ] LVGL spectrum view/widget fed by bounded, decimated spectrum snapshots; perform FFT outside the audio callback
+- [D] RatGUI peak/RMS meters and clipping indicators
+- [D] Filter/EQ response editor and visualization in RatGUI
+- [D] Compressor transfer curve, envelope, and gain-reduction views in RatGUI
+- [D] Mixer strips with gain, pan, mute, solo, routing, and meters in RatGUI
+- [D] Piano keyboard and MIDI activity monitor in RatGUI
+- [D] Audio/MIDI device settings and diagnostics in RatGUI
+- [D] Persist and restore RatGUI graph layout and module settings
 
 ## Phase 7: Graph, Sessions, and Automation
 
@@ -625,11 +632,11 @@ Both renderers consume the shared project, surface schema, snapshots, and comman
 - Oscillator, envelope, and polyphonic voice allocation
 - First hardware audio output backend
 
-### v0.4 - RatGUI
+### v0.4 - RatGUI (deferred)
 
-- Module graph and parameter controls
-- Scope, spectrum, EQ, dynamics, and mixer visualizations
-- Device configuration and diagnostics
+- [D] Module graph and parameter controls
+- [D] Scope, spectrum, EQ, dynamics, and mixer visualizations
+- [D] Device configuration and diagnostics
 
 ### v0.5 - Sessions
 
@@ -665,7 +672,7 @@ Record decisions here before their dependent phase begins.
 | Device identity | Backend ID plus vendor/product/serial identity where available | Open |
 | Control timing | Monotonic timestamps converted to in-block sample offsets | Proposed |
 | Parameter arbitration | Explicit policy per target when multiple routes write | Open |
-| RatGUI integration | Snapshot messages plus command messages | Open |
+| RatGUI integration | Snapshot messages plus command messages | Deferred |
 | Plugin formats | Defer until standalone graph and API are stable | Deferred |
 
 ## Module Definition of Done

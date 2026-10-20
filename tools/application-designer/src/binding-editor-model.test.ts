@@ -44,6 +44,19 @@ describe('binding editor model', () => {
       .toEqual(['Instrument_1 / Gain', 'StereoPanner_1 / Pan'])
   })
 
+  it('excludes read-only and text parameters that cannot receive control events', () => {
+    const workspace = importApplication(demoApplication, demoDescriptors)
+    const instrument = workspace.modules.find((module) => module.id === 'Instrument_1')!
+    const parameters = instrument.descriptor.descriptor_metadata!.musicrat_parameters!.parameters
+    parameters.push(
+      { ...parameters[0], id: 2, name: 'status', read_only: true },
+      { ...parameters[0], id: 3, name: 'path', kind: 'text' },
+    )
+
+    expect(parameterTargetOptions(workspace.modules).map((option) => option.parameter_id))
+      .toEqual([1, 1])
+  })
+
   it('separates control sources from feedback-only endpoints', () => {
     const directional = structuredClone(control)
     directional.devices[0].endpoints.push({

@@ -1,7 +1,6 @@
-import { nextBindingId } from './binding-editor-model'
+import { controllableParameters, nextBindingId } from './binding-editor-model'
 import {
   bindingModesForEndpoint,
-  parametersOf,
   type ControlBinding,
   type ControlEndpoint,
   type ControlValueDomain,
@@ -85,9 +84,8 @@ export function proposeLearnedBinding(
 ): ControlLearnProposal | undefined {
   const found = endpointFor(control, observation.source)
   const module = modules.find((item) => item.id === target.module_id)
-  const parameter = module && parametersOf(module.descriptor).find((item) =>
-    item.id === target.parameter_id && item.automatable && !item.read_only
-      && item.kind !== 'text')
+  const parameter = module && controllableParameters(module.descriptor)
+    .find((item) => item.id === target.parameter_id)
   if (!found || !parameter || found.endpoint.domain !== observation.domain) return undefined
   const mode = bindingModesForEndpoint(found.endpoint)[0]
   if (!mode) return undefined

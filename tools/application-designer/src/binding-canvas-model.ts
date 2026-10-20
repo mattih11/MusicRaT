@@ -1,8 +1,11 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
-import { nextBindingId } from './binding-editor-model'
+import {
+  nextBindingId,
+  parameterTargetOptions,
+  type ParameterTargetOption,
+} from './binding-editor-model'
 import {
   bindingModesForEndpoint,
-  parametersOf,
   type ControlBinding,
   type ControlEndpoint,
   type DesignerModule,
@@ -23,7 +26,7 @@ export interface BindingTargetNodeData extends Record<string, unknown> {
   module_id: string
   display_name: string
   module_class: string
-  parameters: ReturnType<typeof parametersOf>
+  parameters: ParameterTargetOption['parameter'][]
 }
 
 export type BindingCanvasNode = Node<
@@ -83,14 +86,14 @@ export function projectBindingCanvas(
         },
       }
     })
-  const targetModules = modules.map((module) => ({
-    module,
-    parameters: parametersOf(module.descriptor)
-      .filter((parameter) => parameter.automatable && !parameter.read_only),
-  })).filter(({ parameters }) => parameters.length > 0)
-  const targetNodes: BindingCanvasNode[] = targetModules.map(({ module, parameters }, index) => {
+  const targets = parameterTargetOptions(modules)
+  const targetNodes: BindingCanvasNode[] = modules.flatMap((module, index) => {
+    const parameters = targets
+      .filter((target) => target.module_id === module.id)
+      .map((target) => target.parameter)
+    if (parameters.length === 0) return []
     const id = targetNodeId(module.id)
-    return {
+    return [{
       id,
       type: 'bindingTarget',
       position: positionFor(positions, id, {
@@ -105,7 +108,7 @@ export function projectBindingCanvas(
         module_class: module.descriptor.module_class,
         parameters,
       },
-    }
+    }]
   })
   const edges: BindingCanvasEdge[] = (control?.bindings ?? []).map((binding) => ({
     id: binding.id,
@@ -138,9 +141,8 @@ export function bindingFromConnection(
       || !connection.sourceHandle || !connection.targetHandle) return undefined
   const endpoint = source.endpoints.find((item) => item.id === connection.sourceHandle)
   const parameterId = Number(connection.targetHandle)
-  const module = modules.find((item) => item.id === target.module_id)
-  const parameter = module && parametersOf(module.descriptor).find((item) =>
-    item.id === parameterId && item.automatable && !item.read_only)
+  const parameter = parameterTargetOptions(modules).find((item) =>
+    item.module_id === target.module_id && item.parameter_id === parameterId)?.parameter
   if (!endpoint || !parameter) return undefined
   return {
     id: nextBindingId(control.bindings),

@@ -22,6 +22,8 @@ export interface ParameterTargetOption {
   label: string
   module_id: string
   parameter_id: number
+  module_class: string
+  parameter: ReturnType<typeof parametersOf>[number]
 }
 
 export interface ActionTargetOption {
@@ -119,14 +121,22 @@ export function endpointOptions(
 }
 
 export function parameterTargetOptions(modules: DesignerModule[]): ParameterTargetOption[] {
-  return modules.flatMap((module) => parametersOf(module.descriptor)
-    .filter((parameter) => parameter.automatable && !parameter.read_only)
-    .map((parameter) => ({
-      key: parameterTargetKey(module.id, parameter.id),
-      label: `${module.id} / ${parameter.display_name}`,
-      module_id: module.id,
-      parameter_id: parameter.id,
-    })))
+  return modules.flatMap((module) => controllableParameters(module.descriptor).map((parameter) => ({
+    key: parameterTargetKey(module.id, parameter.id),
+    label: `${module.id} / ${parameter.display_name}`,
+    module_id: module.id,
+    parameter_id: parameter.id,
+    module_class: module.descriptor.module_class,
+    parameter,
+  })))
+}
+
+export function controllableParameters(
+  descriptor: DesignerModule['descriptor'],
+): ReturnType<typeof parametersOf> {
+  return parametersOf(descriptor)
+    .filter((parameter) =>
+      parameter.automatable && !parameter.read_only && parameter.kind !== 'text')
 }
 
 export function actionTargetOptions(modules: DesignerModule[]): ActionTargetOption[] {

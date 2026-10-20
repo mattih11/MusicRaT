@@ -25,6 +25,12 @@ Use [docs/EVL_AND_RATOS.md](../docs/EVL_AND_RATOS.md) for EVL portability, RaTOS
 - Command-only dependencies use `commrat::Remote<T>`.
 - The pre-launch Application Designer lives under `tools/application-designer`; RatGUI is for runtime operation and LVGL is for on-device controls.
 
+## Product Scope and Designer UX
+
+- RatGUI implementation is deferred. Do not add RatGUI dependencies or start RatGUI-specific work unless explicitly requested; continue shared renderer-neutral infrastructure and LVGL work where they serve current requirements.
+- Keep the Application Designer focused on user-facing modules. Hide or clearly separate implementation-only adapters from the default module picker.
+- Use the same validated target catalog for binding diagrams and target dropdowns so both surfaces expose consistent, selectable endpoints.
+
 ## Module Pattern
 
 ```cpp

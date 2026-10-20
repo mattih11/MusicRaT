@@ -6,6 +6,7 @@ import {
   projectBindingCanvas,
   targetNodeId,
 } from './binding-canvas-model'
+import { parameterTargetOptions } from './binding-editor-model'
 import { importApplication } from './model'
 
 function fixture() {
@@ -17,6 +18,7 @@ function fixture() {
 describe('binding canvas model', () => {
   it('projects semantic owners and controllable module parameters', () => {
     const { workspace, control } = fixture()
+    const selectableTargets = parameterTargetOptions(workspace.modules)
     const graph = projectBindingCanvas(control, workspace.modules, {
       [ownerNodeId('virtual-controls')]: { x: 25, y: 40 },
     })
@@ -26,6 +28,13 @@ describe('binding canvas model', () => {
     expect(graph.nodes.find((node) => node.id === targetNodeId('Instrument_1')))
       .toMatchObject({ data: { kind: 'target', parameters: [{ id: 1, name: 'gain' }] } })
     expect(graph.nodes.some((node) => node.id === targetNodeId('WavSink_1'))).toBe(false)
+    expect(graph.nodes
+      .filter((node) => node.data.kind === 'target')
+      .flatMap((node) => node.data.kind === 'target'
+        ? node.data.parameters.map((parameter) =>
+          `${node.data.module_id} / ${parameter.display_name}`)
+        : []))
+      .toEqual(selectableTargets.map((target) => target.label))
   })
 
   it('creates a persistent binding from a compatible graph connection', () => {

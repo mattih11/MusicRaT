@@ -358,6 +358,39 @@ The probe was removed and the gain/pan demo restarted on confirmed slot B. The
 launcher and sink are active, PCM is `RUNNING`, the EVL router is active, and
 there are no failed systemd units.
 
+## One-Hour Physical H4 Producer Clock-Offset Tests (2026-10-19)
+
+With approval to pause the gain/pan demo, the ALSA/EVL probe ran for one hour
+at each requested producer offset against the H4 ALC897 analog output
+(`plughw:0,0`). Both runs requested 48 kHz stereo and 480-frame producer blocks,
+with no external CPU/I/O load or injected scheduler stalls. The physical PCM
+negotiated S16_LE, 48 kHz stereo, a 240-frame period, and a 960-frame buffer.
+
+| Producer offset | Elapsed | Max producer lateness | Rejected / underruns / missing frames / failures | Queue high-water / end / capacity | Max correction |
+| --- | --- | --- | --- | --- | --- |
+| +100 ppm | 3599.630 s | 23,348 ns | 0 / 3 / 720 / 0 | 5,836 / 2,483 / 16,384 frames | 500 ppm |
+| -100 ppm | 3600.350 s | 22,336 ns | 0 / 1 / 240 / 0 | 5,591 / 1,676 / 16,384 frames | 500 ppm |
+
+Both runs reached the configured +/-500 ppm maximum correction and exited
+nonzero because ALSA reported underruns. Queue occupancy remained well below
+capacity and no producer blocks were rejected, but neither run meets the
+zero-underrun stability criterion. The runs do not identify whether the
+correction saturation or an independent scheduling/device event caused each
+underrun; the probe does not retain a time series of queue depth and correction.
+These injected producer offsets are not a direct measurement of the physical
+oscillator-clock difference.
+
+The probe was built from MusicRaT `817e49fac384808995ddc106f12cb47d6efd37ba`
+with the EVL ALSA backend, using CoreRaT
+`db1107e837172e3668b1cca7656652e02f25187b` and CommRaT
+`9aeea45c70099045dea17f55f905b324da1285ff`. The target reported Debian 13
+RaTOS image build ID `v0.3.4-9-g294dd75-dirty` and kernel
+`6.12.69-cip17`. The probe/backend sources were unchanged from the MusicRaT
+revision; unrelated Designer and documentation changes made the worktree
+dirty. After each run, the gain/pan demo was relaunched and verified active
+with PCM `RUNNING`; the EVL router remained active. No installed binary,
+configuration, or image was changed.
+
 ## Listening Check (2026-10-19)
 
 The operator approved three 30-second probe segments: nominal cadence, +100 ppm,
@@ -424,8 +457,8 @@ image or config was changed.
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was
   made, so establish an attended recovery plan first.
-- Verify queue occupancy over multi-hour operation and more extreme clock
-  offsets.
+- Resolve correction saturation and underruns observed during the one-hour
+  +/-100 ppm H4 runs, then repeat long-duration validation.
 - Evolve the simple oscillator into a synth voice with note input and an
   integrated ADSR envelope, then repeat the cold-start listening check; the
   intermittent demo onset click remains unresolved.

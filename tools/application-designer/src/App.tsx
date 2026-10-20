@@ -25,6 +25,11 @@ import { compileDeckArtifacts } from './deck-compiler'
 import { DeckEditor } from './DeckEditor'
 import { ModuleNodeView, type ModuleNode } from './ModuleNode'
 import { isAdvancedModulePort } from './module-node-model'
+import {
+  isImplementationModule,
+  moduleDisplayName,
+  modulePickerEntries,
+} from './module-picker-model'
 import { UiDesigner } from './UiDesigner'
 import {
   compileApplication,
@@ -123,12 +128,15 @@ function App() {
   const [canvasView, setCanvasView] = useState<'modules' | 'bindings' | 'hardware' | 'ui'>('modules')
   const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null)
   const [showAdvancedPorts, setShowAdvancedPorts] = useState(false)
+  const [showImplementationModules, setShowImplementationModules] = useState(false)
   const descriptorInput = useRef<HTMLInputElement>(null)
   const projectInput = useRef<HTMLInputElement>(null)
 
   const workspace = currentWorkspace(appName, nodes, edges, sourceDocument)
   const issues = validateWorkspace(workspace)
   const selected = nodes.find((node) => node.id === selectedId)
+  const pickerEntries = modulePickerEntries(catalog, query, showImplementationModules)
+  const hiddenModuleCount = catalog.filter(isImplementationModule).length
   const moduleCanvasNodes = nodes.map((node) => ({
     ...node,
     data: {
@@ -363,15 +371,22 @@ function App() {
       </header>
 
       <aside className="catalog-panel">
-        <div className="panel-heading"><div><span className="eyebrow">Catalog · {catalogSource}</span><h2>Modules</h2></div><span className="count">{catalog.length}</span></div>
+        <div className="panel-heading"><div><span className="eyebrow">Catalog · {catalogSource}</span><h2>Modules</h2></div><span className="count">{pickerEntries.length}</span></div>
         <label className="search"><Search size={15} /><input aria-label="Search modules" placeholder="Filter modules" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        {hiddenModuleCount > 0 && <label className="module-picker-advanced">
+          <input type="checkbox" checked={showImplementationModules}
+            onChange={(event) => setShowImplementationModules(event.target.checked)} />
+          <span>Show implementation modules ({hiddenModuleCount})</span>
+        </label>}
         <div className="catalog-list">
-          {catalog.filter((item) => item.module_class.toLowerCase().includes(query.toLowerCase())).map((descriptor) => (
-            <button className="catalog-item" key={descriptor.module_class} onClick={() => addModule(descriptor)}>
-              <span><strong>{descriptor.module_class.replace('MusicRaT', '')}</strong><small>{portsOf(descriptor).length} ports · {parametersOf(descriptor).length} parameters</small></span>
-              <Plus size={16} aria-hidden="true" />
-            </button>
-          ))}
+          {pickerEntries.length === 0
+            ? <p className="empty-state">No modules match this filter.</p>
+            : pickerEntries.map((descriptor) => (
+              <button className="catalog-item" key={descriptor.module_class} onClick={() => addModule(descriptor)}>
+                <span><strong>{moduleDisplayName(descriptor)}</strong><small>{portsOf(descriptor).length} ports · {parametersOf(descriptor).length} parameters</small></span>
+                <Plus size={16} aria-hidden="true" />
+              </button>
+            ))}
         </div>
         <div className="domain-key"><span className="audio-dot" />Audio <span className="note-dot" />Notes <span className="parameter-dot" />Parameters</div>
       </aside>

@@ -9,9 +9,10 @@ import {
   observableOptions,
   parameterTargetFromKey,
   parameterTargetKey,
+  parameterTargetOptions,
 } from './binding-editor-model'
 import { componentDefinition } from './component-catalog'
-import { actionsOf, parametersOf, type DesignerModule, type MusicRaTControlProject, type SurfaceWidget } from './model'
+import { actionsOf, type DesignerModule, type MusicRaTControlProject, type SurfaceWidget } from './model'
 import { uiComponentCatalog, uiComponentDefinition } from './ui-component-catalog'
 import {
   addSurfaceWidget,
@@ -49,12 +50,7 @@ export function UiDesigner({ control, modules, onChange }: UiDesignerProps) {
     displayWidth: number
     displayHeight: number
   } | null>(null)
-  const parameterOptions = modules.flatMap((module) => parametersOf(module.descriptor).map((parameter) => ({
-    key: parameterTargetKey(module.id, parameter.id),
-    label: `${module.id} / ${parameter.display_name}`,
-    target: { module_id: module.id, parameter_id: parameter.id },
-    controllable: parameter.automatable && !parameter.read_only,
-  })))
+  const parameterOptions = parameterTargetOptions(modules)
   const actionOptions = actionTargetOptions(modules).filter((option) => {
     const module = modules.find((item) => item.id === option.target.module_id)
     const action = module && actionsOf(module.descriptor)
@@ -227,7 +223,7 @@ export function UiDesigner({ control, modules, onChange }: UiDesignerProps) {
             onChange={(event) => routeControlTarget(event.target.value)}>
             <option value="">Not routed</option>
             <optgroup label="Parameters">
-              {parameterOptions.filter((option) => option.controllable).map((option) =>
+              {parameterOptions.map((option) =>
                 <option key={option.key} value={`parameter:${option.key}`}>{option.label}</option>)}
             </optgroup>
             <optgroup label="Actions">
