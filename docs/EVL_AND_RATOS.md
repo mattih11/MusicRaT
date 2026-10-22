@@ -173,6 +173,7 @@ The default preset still builds the headless `NONE` backend unless overridden.
 
 For targeted native validation, configure an ALSA build with `BUILD_TESTING=ON`,
 build `musicrat_audio_output_probe`, `musicrat_playback_preroll_test`,
+`musicrat_playback_diagnostics_test`,
 `musicrat_audio_clock_drift_test`,
 `musicrat_audio_output_backend_alsa_test`, and `musicrat_audio_device_sink_test`,
 then run:
@@ -182,7 +183,7 @@ bash scripts/validate-audio-runtime.sh std build-alsa-validation \
   tests/fixtures/alsa_null.conf
 ```
 
-For an already booted EVL QEMU guest, copy those five SDK-built executables,
+For an already booted EVL QEMU guest, copy those six SDK-built executables,
 `scripts/validate-audio-runtime.sh`, and `tests/fixtures/alsa_null.conf` to a
 separate guest directory and run the same script with `evl` instead of `std`.
 Provide the matching target runtime libraries through the image/package, not
@@ -235,6 +236,107 @@ metrics. Producer lateness includes deliberately injected jitter and is not
 hardware latency. Record negotiated PCM geometry separately from requested
 values, for example from `/proc/asound/card*/pcm*p/sub*/hw_params` while
 running.
+
+### Opt-in ALSA Worker Events
+
+Add `--backend-events 1` to enable bounded worker diagnostics; the default is
+`0`. Other backends reject this probe option. Ordinary module playback does not
+enable diagnostics or add timing/status calls. Capture adds platform-clock
+reads to the in-band ALSA worker and `snd_pcm_avail_delay`/state queries on
+selected events, so compare instrumented results cautiously: it is an observer,
+not an unchanged timing environment.
+
+The probe preallocates its one-second telemetry capacity plus 8,192 event slots
+before opening the backend. The worker never allocates or prints events.
+`backend_diagnostics` is `null` when disabled; otherwise it includes negotiated
+device sample rate, period/buffer frames, capacity, dropped-event count, status
+query failures, and `events`. Full storage retains the first events, counts
+subsequent selected events as `dropped_events`, and makes the probe exit nonzero.
+ALSA status-query errors are preserved per event and counted, not silently
+converted to valid device metrics. They do not independently fail the probe:
+for example a status query can fail while ALSA is in an error state.
+
+Events are selected approximately once per second, on correction-limit
+entry/exit/sign changes, on write errors (other than ordinary `-EAGAIN`), on
+wait errors/timeouts, and on slow worker iterations/writes/waits. The slow
+threshold is the duration of the larger of four negotiated device periods and
+two requested producer blocks (20 ms for the H4 240/480-frame setup).
+The `reasons` bitmask is:
+
+| Bit value | Meaning |
+| --- | --- |
+| 1 | Periodic snapshot |
+| 2 | Worker iteration gap at or above the threshold |
+| 4 | Slow ALSA write |
+| 8 | Slow ALSA wait |
+| 16 | Write error or unexpected zero write |
+| 32 | ALSA wait returned an error or timed out |
+| 64 | Entering, leaving, or changing sign at the correction limit |
+| 128 | Wait scheduling-counter open/read/validation failure |
+
+`timestamp_ns` is the worker iteration start on the CoreRaT platform monotonic
+clock; `observation_timestamp_ns` is taken after write/wait/recovery, immediately
+before the selected device-status query. Subtract the top-level
+`producer_start_timestamp_ns` to correlate with producer telemetry; worker
+startup events can precede the producer start. `worker_gap_ns` measures time
+between iteration starts, not Linux scheduler latency. Write/wait durations
+include preemption inside those calls. Queue depths are captured before and
+after the operation; they are concurrent observations, not a synchronized
+transaction.
+
+`source_frames_consumed` and `device_frames_written` are cumulative successful
+queue-consumption and ALSA-submission counts, not hardware playback counters.
+`requested_frames`/`write_result` report the write request and signed ALSA
+return; zero requested frames means that iteration did not write.
+`wait_result` applies only to a `write_result` of `-EAGAIN`;
+`recovery_result` applies to other unsuccessful writes. Recovery preserves the
+existing playback policy. Device state uses ALSA's numeric state enum;
+availability/delay are signed frame counts and valid only when
+`device_status_result` is zero. Status is sampled after recovery, so a successful
+recovery can hide the prior XRUN state, but not its write error. These
+observations help distinguish worker stalls, ALSA backpressure, and device
+progress; they do not establish a hardware clock offset or OOB residency.
+
+The optional `AudioOutputConfig::diagnostics` pointer is caller-owned storage,
+supported by ALSA only. Its event span and capture object must outlive
+`close()`. Inspect them only after `close()` has joined the worker; they are not
+atomic live telemetry. Reopening resets capture metadata without replacing
+the caller's span.
+
+For deeper in-band wait diagnostics, add `--wait-scheduling 1` together with
+`--backend-events 1`. This is disabled separately by default. On its own ALSA
+worker, the backend opens `/proc/thread-self/schedstat` once and performs two
+bounded reads around each `snd_pcm_wait`. This is diagnostic-only Linux
+in-band file I/O, never producer/module-callback or EVL OOB work. It adds
+overhead on every wait, including waits that do not produce a retained event.
+The H4 kernel used here exposes these counters but no tracefs scheduler events.
+
+For retained events with a `write_result` of `-EAGAIN`, the extra fields are:
+
+- `wait_start_timestamp_ns`, paired with `wait_duration_ns`, brackets the
+  actual ALSA wait separately from counter-read overhead.
+- `scheduling_before_timestamp_ns` and `scheduling_after_timestamp_ns` bracket
+  both counter reads and the wait on the same CoreRaT clock.
+- `scheduling_runtime_ns`, `scheduling_runnable_delay_ns`, and
+  `scheduling_timeslices` are differences in the worker's Linux CPU-runtime,
+  runnable-but-not-running delay, and timeslice counters.
+- `scheduling_result` is zero on valid reads or a negative errno on failure.
+  Failed reads/parses or decreasing counters emit reason 128 and increment
+  `scheduling_failures`; any such failure makes the probe exit nonzero.
+
+The counters are scheduler-accounting observations, not exact syscall time
+partitions. Accounting can be updated at context switches, so runtime deltas
+can include execution before the first snapshot, and accounting granularity
+or disabled kernel accounting can produce zeros. Do not interpret a zero
+run-queue delta alone as proof that scheduling played no role, or subtract
+these counters from wall time and label the remainder hardware delay.
+Repeated slow waits with substantial run-queue deltas support scheduling
+contention. Repeated long waits with zero runnable delay and little CPU-runtime
+support the worker being blocked/asleep inside the wait rather than runnable
+and waiting for ordinary Linux CPU scheduling; they still do not distinguish
+ALSA/plugin wait behavior, driver, interrupt, or device-readiness delays.
+No kernel scheduling settings are changed. A trace-capable kernel would still
+be needed for definitive wakeup-to-run/interrupt correlation.
 
 Do not interrupt a live demo for automated testing without approval. CPU/I/O
 stress with the new queue metrics, producer/device clock-skew measurement,

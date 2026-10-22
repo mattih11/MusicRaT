@@ -15,6 +15,7 @@ if [[ ! -f "$null_config" ]]; then
     exit 1
 fi
 for name in musicrat_audio_output_probe musicrat_playback_preroll_test \
+    musicrat_playback_diagnostics_test \
     musicrat_audio_clock_drift_test \
     musicrat_audio_output_backend_alsa_test musicrat_audio_device_sink_test; do
     if [[ ! -x "$binary_dir/$name" ]]; then
@@ -27,6 +28,7 @@ echo "Kernel: $(uname -srvm)"
 echo "Runtime binary checksums:"
 sha256sum "$binary_dir/musicrat_audio_output_probe" \
     "$binary_dir/musicrat_playback_preroll_test" \
+    "$binary_dir/musicrat_playback_diagnostics_test" \
     "$binary_dir/musicrat_audio_clock_drift_test" \
     "$binary_dir/musicrat_audio_output_backend_alsa_test" \
     "$binary_dir/musicrat_audio_device_sink_test"
@@ -40,6 +42,7 @@ fi
 
 export ALSA_CONFIG_PATH="$null_config"
 "$binary_dir/musicrat_playback_preroll_test"
+"$binary_dir/musicrat_playback_diagnostics_test"
 "$binary_dir/musicrat_audio_clock_drift_test"
 "$binary_dir/musicrat_audio_output_backend_alsa_test"
 "$binary_dir/musicrat_audio_device_sink_test"
@@ -53,6 +56,19 @@ fi
 printf '%s\n' "$result"
 if ! grep -q "\"platform\":\"$platform\"" <<< "$result"; then
     echo "Probe platform does not match requested validation platform: $platform" >&2
+    exit 1
+fi
+if result=$("$binary_dir/musicrat_audio_output_probe" --device null \
+    --blocks 210 --backend-events 1 --wait-scheduling 1); then
+    :
+else
+    printf '%s\n' "$result" >&2
+    echo "Null-device backend-event capture failed" >&2
+    exit 1
+fi
+printf '%s\n' "$result"
+if ! grep -q "\"platform\":\"$platform\"" <<< "$result"; then
+    echo "Event-capture platform does not match requested validation platform: $platform" >&2
     exit 1
 fi
 echo "Audio runtime validation passed ($platform, ALSA null device; no hardware performance claim)."

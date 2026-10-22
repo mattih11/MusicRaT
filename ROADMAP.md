@@ -195,7 +195,12 @@ remain deferred until their runtime ownership contracts are defined.
     - [x] Collect one-hour +100/-100 ppm H4 probe results; record queue metrics, correction saturation, and underruns
     - [x] Add bounded time-correlated queue-depth, correction, and ALSA-underrun diagnostics to the probe
     - [x] Repeat one-hour +/-100 ppm H4 runs with telemetry; neither the earlier underruns nor correction saturation reproduced
-    - [ ] Investigate the discrepancy, capture negotiated PCM geometry, and repeat controlled long-duration runs before closing the stability gate
+    - [x] Capture negotiated PCM geometry and repeat controlled one-hour +/-100 ppm runs; matching geometry, no underruns, but +100 ppm reproduced transient correction saturation
+    - [x] Add opt-in bounded ALSA worker/wait/write/device-status event capture; validate recorder limits, native ALSA, and EVL QEMU runtime paths
+    - [x] Collect one-hour +/-100 ppm physical worker events; identify a 29 ms ALSA wait with three-block queue buildup, without underruns or correction saturation
+    - [x] Add separately gated Linux in-band scheduling-counter snapshots around ALSA waits; validate parsing and native/EVL runtime compatibility
+    - [x] Capture per-wait scheduler accounting during one-hour +/-100 ppm runs; three +100 ppm waits of 25-29 ms had zero runnable delay and each added three producer blocks to the queue
+    - [ ] Distinguish ALSA/plugin wait readiness from driver/device progress and explain earlier underruns before closing the stability gate
 - [ ] Complete the H4 display feedback loop
   - [x] Add live peak/RMS/clipping meters to the gain/pan screen
   - [x] Compile authoritative gain and pan parameter state into LVGL widget updates, merged with meter observations and covered by a second-source compiler fixture
@@ -660,7 +665,7 @@ Record decisions here before their dependent phase begins.
 | Internal sample type | CMake-selected `float` or `double`; default `float` | Decided |
 | Channel storage | Planar fixed-capacity block | Decided |
 | Audio capacities | CMake-generated application-wide constants | Decided |
-| Scheduling model | Absolute platform-clock module deadlines plus bounded output-sink adaptive resampling | Earlier one-hour offset failures were not reproduced with telemetry; discrepancy and physical audio-quality qualification remain open |
+| Scheduling model | Absolute platform-clock module deadlines plus bounded output-sink adaptive resampling | Controlled repeats reproduced transient correction saturation without underruns; earlier underruns and physical audio-quality qualification remain open |
 | Media decode boundary | In-band decoder worker feeding preallocated PCM chunks to the real-time renderer | Decided |
 | Initial player rate mode | Forward varispeed first; pitch lock as a latency-reporting extension | Decided |
 | Deck synchronization | One graph transport master with explicit follower tempo/phase modes | Decided |

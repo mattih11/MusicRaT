@@ -42,6 +42,8 @@ struct Options {
     uint32_t jitter_ms{0};
     uint32_t jitter_every{37};
     int32_t clock_offset_ppm{0};
+    uint32_t backend_events{0};
+    uint32_t wait_scheduling{0};
 };
 
 long double estimated_duration_seconds(
@@ -76,6 +78,8 @@ bool parse(int argc, char** argv, Options& options) {
         else if (key == "--blocks") target = &options.blocks;
         else if (key == "--jitter-ms") target = &options.jitter_ms;
         else if (key == "--jitter-every") target = &options.jitter_every;
+        else if (key == "--backend-events") target = &options.backend_events;
+        else if (key == "--wait-scheduling") target = &options.wait_scheduling;
         else if (key == "--clock-offset-ppm") {
             const auto result = std::from_chars(
                 value.data(), value.data() + value.size(),
@@ -107,7 +111,9 @@ bool parse(int argc, char** argv, Options& options) {
         || options.blocks == 0 || options.jitter_every == 0
         || options.jitter_ms > 1000
         || options.clock_offset_ppm < -1000
-        || options.clock_offset_ppm > 1000) {
+        || options.clock_offset_ppm > 1000 || options.backend_events > 1
+        || options.wait_scheduling > 1
+        || (options.wait_scheduling && !options.backend_events)) {
         std::fprintf(stderr, "Invalid format, block count, or jitter (maximum 1000 ms)\n");
         return false;
     }
@@ -126,12 +132,27 @@ int run(int argc, char** argv) {
     if (!parse(argc, argv, options)) {
         return 2;
     }
+    const uint64_t total_frames =
+        static_cast<uint64_t>(options.blocks) * options.frames;
+    const std::size_t telemetry_capacity = static_cast<std::size_t>(
+        std::ceil(estimated_duration_seconds(total_frames, options)) + 2);
+    std::vector<TelemetrySample> telemetry_samples(telemetry_capacity);
+    std::vector<musicrat::backends::audio::AudioOutputDiagnosticEvent>
+        diagnostic_events(options.backend_events ? telemetry_capacity + 8192 : 0);
+    musicrat::backends::audio::AudioOutputDiagnostics diagnostics{
+        .events = diagnostic_events,
+        .wait_scheduling = options.wait_scheduling != 0};
     auto backend = musicrat::backends::audio::make_audio_output_backend();
+    if (options.backend_events && std::string_view{backend->name()} != "alsa") {
+        std::fprintf(stderr, "Backend event capture requires the ALSA backend\n");
+        return 2;
+    }
     if (!backend->open({
             .device_name = options.device,
             .sample_rate_hz = options.rate,
             .channel_count = static_cast<uint16_t>(options.channels),
             .period_frames = options.frames,
+            .diagnostics = options.backend_events ? &diagnostics : nullptr,
         })) {
         std::fprintf(stderr, "Failed to open %s output device\n", backend->name());
         return 1;
@@ -149,11 +170,7 @@ int run(int argc, char** argv) {
     uint64_t rejected = 0;
     uint64_t elapsed_ns = 0;
     uint64_t maximum_lateness_ns = 0;
-    const uint64_t total_frames =
-        static_cast<uint64_t>(options.blocks) * options.frames;
-    const std::size_t telemetry_capacity = static_cast<std::size_t>(
-        std::ceil(estimated_duration_seconds(total_frames, options)) + 2);
-    std::vector<TelemetrySample> telemetry_samples(telemetry_capacity);
+    uint64_t producer_start_timestamp_ns = 0;
     std::size_t telemetry_count = 0;
     bool telemetry_overflow = false;
     bool attached = true;
@@ -165,6 +182,7 @@ int run(int argc, char** argv) {
         }
 #endif
         const auto start = corerat::Time::now();
+        producer_start_timestamp_ns = start;
         const uint64_t nominal_period_ns =
             (static_cast<uint64_t>(options.frames) * 1'000'000'000ULL + options.rate / 2)
             / options.rate;
@@ -259,6 +277,7 @@ int run(int argc, char** argv) {
         "{\"backend\":\"%s\",\"platform\":\"%s\",\"sample_rate_hz\":%u,"
         "\"channels\":%u,\"period_frames\":%u,\"blocks\":%u,"
         "\"jitter_ms\":%u,\"jitter_every\":%u,\"clock_offset_ppm\":%d,"
+        "\"producer_start_timestamp_ns\":%llu,"
         "\"elapsed_ns\":%llu,"
         "\"maximum_producer_lateness_ns\":%llu,\"rejected_blocks\":%llu,"
         "\"underruns\":%llu,\"missing_frames\":%llu,\"stream_failures\":%llu,"
@@ -270,6 +289,7 @@ int run(int argc, char** argv) {
         backend->name(), platform, options.rate, options.channels, options.frames,
         options.blocks, options.jitter_ms, options.jitter_every,
         static_cast<int>(options.clock_offset_ppm),
+        static_cast<unsigned long long>(producer_start_timestamp_ns),
         static_cast<unsigned long long>(elapsed_ns),
         static_cast<unsigned long long>(maximum_lateness_ns),
         static_cast<unsigned long long>(rejected),
@@ -300,11 +320,76 @@ int run(int argc, char** argv) {
             static_cast<unsigned long long>(sample.missing_frames),
             static_cast<unsigned long long>(sample.stream_failures));
     }
-    std::puts("]}");
+    std::printf("],\"backend_diagnostics\":");
+    if (!options.backend_events) {
+        std::printf("null");
+    } else {
+        std::printf(
+            "{\"start_timestamp_ns\":%llu,\"slow_operation_threshold_ns\":%llu,"
+            "\"device_period_frames\":%llu,\"device_buffer_frames\":%llu,"
+            "\"device_sample_rate_hz\":%u,\"capacity\":%zu,"
+            "\"dropped_events\":%llu,\"status_failures\":%llu,"
+            "\"wait_scheduling\":%s,\"scheduling_failures\":%llu,\"events\":[",
+            static_cast<unsigned long long>(diagnostics.start_timestamp_ns),
+            static_cast<unsigned long long>(diagnostics.slow_operation_threshold_ns),
+            static_cast<unsigned long long>(diagnostics.device_period_frames),
+            static_cast<unsigned long long>(diagnostics.device_buffer_frames),
+            diagnostics.device_sample_rate_hz, diagnostic_events.size(),
+            static_cast<unsigned long long>(diagnostics.dropped_events),
+            static_cast<unsigned long long>(diagnostics.status_failures),
+            diagnostics.wait_scheduling ? "true" : "false",
+            static_cast<unsigned long long>(diagnostics.scheduling_failures));
+        for (std::size_t index = 0; index < diagnostics.count; ++index) {
+            const auto& event = diagnostic_events[index];
+            std::printf(
+                "%s{\"timestamp_ns\":%llu,\"observation_timestamp_ns\":%llu,"
+                "\"worker_gap_ns\":%llu,\"write_duration_ns\":%llu,"
+                "\"wait_duration_ns\":%llu,\"wait_start_timestamp_ns\":%llu,"
+                "\"scheduling_before_timestamp_ns\":%llu,"
+                "\"scheduling_after_timestamp_ns\":%llu,"
+                "\"scheduling_runtime_ns\":%llu,"
+                "\"scheduling_runnable_delay_ns\":%llu,"
+                "\"scheduling_timeslices\":%llu,\"scheduling_result\":%d,"
+                "\"queued_before\":%llu,"
+                "\"queued_after\":%llu,\"source_frames_consumed\":%llu,"
+                "\"device_frames_written\":%llu,\"write_result\":%lld,"
+                "\"device_available_frames\":%lld,\"device_delay_frames\":%lld,"
+                "\"requested_frames\":%u,\"reasons\":%u,\"correction_ppm\":%d,"
+                "\"wait_result\":%d,\"recovery_result\":%d,\"device_state\":%d,"
+                "\"device_status_result\":%d}",
+                index == 0 ? "" : ",",
+                static_cast<unsigned long long>(event.timestamp_ns),
+                static_cast<unsigned long long>(event.observation_timestamp_ns),
+                static_cast<unsigned long long>(event.worker_gap_ns),
+                static_cast<unsigned long long>(event.write_duration_ns),
+                static_cast<unsigned long long>(event.wait_duration_ns),
+                static_cast<unsigned long long>(event.wait_start_timestamp_ns),
+                static_cast<unsigned long long>(event.scheduling_before_timestamp_ns),
+                static_cast<unsigned long long>(event.scheduling_after_timestamp_ns),
+                static_cast<unsigned long long>(event.scheduling_runtime_ns),
+                static_cast<unsigned long long>(event.scheduling_runnable_delay_ns),
+                static_cast<unsigned long long>(event.scheduling_timeslices),
+                event.scheduling_result,
+                static_cast<unsigned long long>(event.queued_before),
+                static_cast<unsigned long long>(event.queued_after),
+                static_cast<unsigned long long>(event.source_frames_consumed),
+                static_cast<unsigned long long>(event.device_frames_written),
+                static_cast<long long>(event.write_result),
+                static_cast<long long>(event.device_available_frames),
+                static_cast<long long>(event.device_delay_frames),
+                event.requested_frames, event.reasons, event.correction_ppm,
+                event.wait_result, event.recovery_result, event.device_state,
+                event.device_status_result);
+        }
+        std::printf("]}");
+    }
+    std::puts("}");
     return rejected == 0 && underruns == 0 && missing_frames == 0 && failures == 0
             && queued_frames <= queue_capacity_frames
             && queue_high_water_frames <= queue_capacity_frames
             && !telemetry_overflow
+            && diagnostics.dropped_events == 0
+            && diagnostics.scheduling_failures == 0
         ? 0
         : 1;
 }

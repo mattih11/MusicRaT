@@ -70,7 +70,8 @@ public:
 
     [[nodiscard]] bool open(const AudioOutputConfig& config) noexcept override {
         close();
-        if (config.sample_rate_hz == 0 || config.channel_count == 0
+        if (config.diagnostics != nullptr
+            || config.sample_rate_hz == 0 || config.channel_count == 0
             || config.channel_count > config::max_audio_channels
             || config.channel_count > 8
             || config.period_frames == 0

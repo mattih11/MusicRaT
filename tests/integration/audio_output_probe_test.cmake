@@ -12,6 +12,11 @@ if(MODE STREQUAL "invalid")
         "--clock-offset-ppm;invalid"
         "--blocks;8640001"
         "--blocks;100000;--jitter-ms;1000;--jitter-every;1"
+        "--backend-events;2"
+        "--backend-events;invalid"
+        "--wait-scheduling;1"
+        "--wait-scheduling;2;--backend-events;1"
+        "--wait-scheduling;invalid"
         "--unknown;1"
         "--blocks")
         execute_process(COMMAND "${PROBE}" ${arguments}
@@ -20,9 +25,18 @@ if(MODE STREQUAL "invalid")
             message(FATAL_ERROR "Invalid options were not rejected cleanly: ${arguments}: ${result}: ${output}: ${error}")
         endif()
     endforeach()
-elseif(MODE STREQUAL "null")
+elseif(MODE STREQUAL "null" OR MODE STREQUAL "events" OR MODE STREQUAL "scheduling")
+    set(events 0)
+    set(scheduling 0)
+    if(NOT MODE STREQUAL "null")
+        set(events 1)
+    endif()
+    if(MODE STREQUAL "scheduling")
+        set(scheduling 1)
+    endif()
     execute_process(COMMAND "${PROBE}" --device null --blocks 210
-        --clock-offset-ppm 100
+        --clock-offset-ppm 100 --backend-events "${events}"
+        --wait-scheduling "${scheduling}"
         RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error
         TIMEOUT 10)
     if(NOT result STREQUAL "0")
@@ -109,6 +123,68 @@ elseif(MODE STREQUAL "null")
     string(JSON platform GET "${output}" platform)
     if(NOT platform MATCHES "^(std|evl)$")
         message(FATAL_ERROR "Unexpected platform: ${output}")
+    endif()
+    string(JSON diagnostics_type TYPE "${output}" backend_diagnostics)
+    if(NOT events)
+        if(NOT diagnostics_type STREQUAL "NULL")
+            message(FATAL_ERROR "Backend diagnostics were not disabled by default")
+        endif()
+    else()
+        string(JSON event_count LENGTH "${output}" backend_diagnostics events)
+        string(JSON capacity GET "${output}" backend_diagnostics capacity)
+        string(JSON dropped GET "${output}" backend_diagnostics dropped_events)
+        string(JSON status_failures GET "${output}" backend_diagnostics status_failures)
+        string(JSON scheduling_failures GET "${output}" backend_diagnostics scheduling_failures)
+        string(JSON wait_scheduling GET "${output}" backend_diagnostics wait_scheduling)
+        if((scheduling AND NOT wait_scheduling) OR (NOT scheduling AND wait_scheduling)
+           OR NOT scheduling_failures EQUAL 0)
+            message(FATAL_ERROR "Invalid scheduling capture metadata: ${output}")
+        endif()
+        string(JSON rate GET "${output}" backend_diagnostics device_sample_rate_hz)
+        string(JSON period GET "${output}" backend_diagnostics device_period_frames)
+        string(JSON buffer GET "${output}" backend_diagnostics device_buffer_frames)
+        string(JSON start GET "${output}" backend_diagnostics start_timestamp_ns)
+        string(JSON producer_start GET "${output}" producer_start_timestamp_ns)
+        if(event_count LESS 2 OR event_count GREATER capacity
+           OR NOT dropped EQUAL 0 OR NOT status_failures EQUAL 0
+           OR NOT rate EQUAL 48000 OR period LESS_EQUAL 0 OR buffer LESS period
+           OR start GREATER producer_start)
+            message(FATAL_ERROR "Invalid backend capture metadata: ${output}")
+        endif()
+        set(previous_timestamp 0)
+        set(previous_source 0)
+        set(previous_device 0)
+        math(EXPR last_event "${event_count} - 1")
+        foreach(index RANGE 0 ${last_event})
+            foreach(field IN ITEMS timestamp_ns observation_timestamp_ns reasons
+                queued_before queued_after source_frames_consumed device_frames_written
+                requested_frames write_result write_duration_ns wait_duration_ns
+                worker_gap_ns correction_ppm wait_result recovery_result
+                wait_start_timestamp_ns scheduling_before_timestamp_ns
+                scheduling_after_timestamp_ns scheduling_runtime_ns
+                scheduling_runnable_delay_ns scheduling_timeslices scheduling_result
+                device_available_frames device_delay_frames device_state device_status_result)
+                string(JSON ${field} GET "${output}" backend_diagnostics events ${index} ${field})
+            endforeach()
+            if(timestamp_ns LESS previous_timestamp
+               OR observation_timestamp_ns LESS timestamp_ns OR reasons LESS_EQUAL 0
+               OR queued_before GREATER queue_capacity OR queued_after GREATER queue_capacity
+               OR source_frames_consumed LESS previous_source
+               OR device_frames_written LESS previous_device)
+                message(FATAL_ERROR "Invalid backend diagnostic event: ${output}")
+            endif()
+            if(scheduling AND write_result EQUAL -11)
+                if(scheduling_result LESS 0
+                   OR scheduling_before_timestamp_ns LESS timestamp_ns
+                   OR scheduling_before_timestamp_ns GREATER wait_start_timestamp_ns
+                   OR scheduling_after_timestamp_ns GREATER observation_timestamp_ns)
+                    message(FATAL_ERROR "Invalid wait scheduling interval: ${output}")
+                endif()
+            endif()
+            set(previous_timestamp "${timestamp_ns}")
+            set(previous_source "${source_frames_consumed}")
+            set(previous_device "${device_frames_written}")
+        endforeach()
     endif()
 else()
     message(FATAL_ERROR "Unknown probe test mode: ${MODE}")

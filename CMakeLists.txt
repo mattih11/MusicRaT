@@ -847,6 +847,16 @@ if(BUILD_TESTING)
     add_test(NAME musicrat.backends.playback_preroll
         COMMAND musicrat_playback_preroll_test)
 
+    add_executable(musicrat_playback_diagnostics_test
+        tests/backends/playback_diagnostics_test.cpp)
+    target_include_directories(musicrat_playback_diagnostics_test
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/backends/audio")
+    target_link_libraries(musicrat_playback_diagnostics_test PRIVATE musicrat_core)
+    target_compile_options(musicrat_playback_diagnostics_test
+        PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
+    add_test(NAME musicrat.backends.playback_diagnostics
+        COMMAND musicrat_playback_diagnostics_test)
+
     add_executable(musicrat_audio_clock_drift_test
         tests/backends/audio_clock_drift_test.cpp)
     target_include_directories(musicrat_audio_clock_drift_test
@@ -872,6 +882,18 @@ if(BUILD_TESTING)
             COMMAND ${CMAKE_COMMAND} "-DPROBE=$<TARGET_FILE:musicrat_audio_output_probe>"
                 -DMODE=null -P "${PROJECT_SOURCE_DIR}/tests/integration/audio_output_probe_test.cmake")
         set_tests_properties(musicrat.backends.audio_probe_null PROPERTIES
+            ENVIRONMENT "ALSA_CONFIG_PATH=${PROJECT_SOURCE_DIR}/tests/fixtures/alsa_null.conf"
+            TIMEOUT 10)
+        add_test(NAME musicrat.backends.audio_probe_events
+            COMMAND ${CMAKE_COMMAND} "-DPROBE=$<TARGET_FILE:musicrat_audio_output_probe>"
+                -DMODE=events -P "${PROJECT_SOURCE_DIR}/tests/integration/audio_output_probe_test.cmake")
+        set_tests_properties(musicrat.backends.audio_probe_events PROPERTIES
+            ENVIRONMENT "ALSA_CONFIG_PATH=${PROJECT_SOURCE_DIR}/tests/fixtures/alsa_null.conf"
+            TIMEOUT 10)
+        add_test(NAME musicrat.backends.audio_probe_scheduling
+            COMMAND ${CMAKE_COMMAND} "-DPROBE=$<TARGET_FILE:musicrat_audio_output_probe>"
+                -DMODE=scheduling -P "${PROJECT_SOURCE_DIR}/tests/integration/audio_output_probe_test.cmake")
+        set_tests_properties(musicrat.backends.audio_probe_scheduling PROPERTIES
             ENVIRONMENT "ALSA_CONFIG_PATH=${PROJECT_SOURCE_DIR}/tests/fixtures/alsa_null.conf"
             TIMEOUT 10)
     endif()

@@ -424,6 +424,201 @@ retained in the session validation artifacts. These controlled producer-offset
 tests are not measurements of the physical oscillator-clock difference or
 subjective audio quality.
 
+### Controlled Repeats with PCM and Scheduling Capture (2026-10-20)
+
+Both offsets were repeated for 360,000 blocks using the exact same EVL/ALSA
+telemetry binary (SHA256
+`0a0ff642cbb8519011c99d17ee2dd3a7fd37ee749113ef686d6d60525bbd9885`),
+without changing the backend or correction policy. A ten-second physical smoke
+test first verified capture and demo restoration. Hardware parameters captured
+from the PCM owned by each probe confirmed RW_INTERLEAVED, S16_LE, 48 kHz
+stereo, 240-frame periods, and a 960-frame buffer, matching the original
+failing runs. There was no injected jitter or external stress workload.
+A separate observer captured PCM status, Linux thread scheduling statistics,
+and load approximately every 30 seconds; this observation adds some load and
+is not an uninstrumented control.
+
+| Producer offset | Elapsed | Max producer lateness | Rejected / underruns / missing frames / failures | Queue high-water / end / capacity | Max correction | Final correction |
+| --- | --- | --- | --- | --- | --- | --- |
+| +100 ppm | 3599.630 s | 21,707 ns | 0 / 0 / 0 / 0 | 5,266 / 2,306 / 16,384 frames | 500 ppm | -23 ppm |
+| -100 ppm | 3600.350 s | 23,406 ns | 0 / 0 / 0 / 0 | 1,920 / 1,687 / 16,384 frames | 346 ppm | -178 ppm |
+
+Both runs exited zero, with 3,600 and 3,601 monotonic telemetry samples and no
+telemetry overflow. The +100 ppm run reproduced correction saturation without
+reproducing an underrun: 34 snapshots reported +500 ppm, between approximately
+4 and 38 seconds. Sampled queue depth rose from 1,199 frames at 3.010 seconds
+to 5,022 frames at 4.010 seconds, then recovered toward the usual range.
+This approximately 3,800-frame step is far larger than the 4.8 frames/second
+introduced by a +100 ppm producer offset at 48 kHz. It is evidence of a
+transient queue imbalance, not evidence that steady injected skew alone
+required maximum correction. The one-second telemetry and 30-second scheduler
+snapshots cannot identify the responsible consumer/device event. Low producer
+wake-up lateness does not measure backend-worker stalls.
+
+The -100 ppm sampled corrections ranged from -345 to 0 ppm and did not
+saturate. These results establish that correction saturation and a counted
+ALSA underrun need not occur together. They do not explain or invalidate the
+earlier underruns. The next diagnostic should distinguish backend-worker
+progress, ALSA wait/write timing, and device progress around a queue excursion,
+using bounded event capture rather than increasing the correction limit or
+assuming Linux scheduling snapshots measure EVL out-of-band execution.
+
+The PCM software-parameter snapshots were taken at different startup stages:
++100 ppm was already `RUNNING` with `start_threshold=960`, whereas -100 ppm
+was still `SETUP` with `start_threshold=1`. These are not evidence of a stable
+per-offset configuration difference; subsequent -100 ppm status samples show
+`RUNNING`.
+
+Both probe JSON checksums matched the retrieved copies. After each run the
+gain/pan demo was restored; final checks confirmed its service and PCM were
+active, the EVL router was present, and no systemd units had failed. No installed
+binary, configuration, or image was changed. JSON results, PCM parameters,
+context, and scheduling observations are retained with the session evidence.
+
+### Bounded Worker Diagnostic Validation (2026-10-21)
+
+The next diagnostic adds opt-in, caller-preallocated ALSA worker events through
+`--backend-events 1`. It records periodic device availability/delay snapshots,
+worker gaps, slow writes/waits, errors, and correction-limit transitions.
+The queue-feedback policy, correction bound, pre-roll, and recovery decisions
+are unchanged. See [the event contract](EVL_AND_RATOS.md#opt-in-alsa-worker-events)
+for timestamp correlation, capture limits, and observer effects.
+
+Native recorder tests cover event selection, correction-limit transitions,
+full/empty buffers, and explicit dropped-event accounting. Native ALSA probe
+tests check enabled/disabled JSON, geometry, monotonic event timestamps and
+cumulative frame counts. PipeWire and NONE probe/sink builds and targeted
+tests also pass; event capture is explicitly rejected outside ALSA.
+
+An isolated QEMU guest booted the cached `6.12.69-cip17` EVL kernel and passed
+upstream `clock-timer-periodic`, `simple-clone`, and `detach-self`, followed by
+SDK-built pre-roll, diagnostic-recorder, clock-drift, ALSA-backend, and sink
+regressions. Default and diagnostic-enabled null-PCM probes passed. The
+diagnostic JSON contained bounded monotonic worker events, negotiated geometry,
+and zero dropped events, status-query failures, or playback health errors.
+The guest used matching SDK `libevl` and `libasound` from an isolated runtime
+directory. This validates the EVL runtime path, not physical timing or the
+cause of the H4 queue excursion.
+
+### Physical Worker-Event Captures (2026-10-21)
+
+With operator approval, the diagnostic-enabled EVL/ALSA probe ran for one hour
+at each offset, with 360,000 stereo 480-frame blocks at 48 kHz and no injected
+jitter or external stress workload. The development probe SHA256 was
+`d137db5d13c37ad9f30d2883113bf8dafc84c7ba016e2722bec03b1e4892f35e`;
+its changes were uncommitted. Both the backend and physical PCM observations
+confirmed 240-frame periods and a 960-frame buffer. Hardware access was
+RW_INTERLEAVED/S16_LE; both captured running-state software configurations
+reported `start_threshold=960`.
+
+| Producer offset | Elapsed | Max producer lateness | Rejected / underruns / missing frames / failures | Queue high-water / end / capacity | Max correction | Worker events |
+| --- | --- | --- | --- | --- | --- | --- |
+| +100 ppm | 3599.630 s | 23,889 ns | 0 / 0 / 0 / 0 | 2,671 / 2,312 / 16,384 frames | 315 ppm | 3,592 |
+| -100 ppm | 3600.350 s | 21,162 ns | 0 / 0 / 0 / 0 | 1,920 / 1,653 / 16,384 frames | 354 ppm | 3,595 |
+
+Both probes exited zero without correction saturation, telemetry overflow,
+dropped worker events, or status-query failures. Their 3,600/3,601 producer
+samples and worker-event timestamps were monotonic, as were cumulative worker
+source-consumption and device-submission counts. Worker snapshots are scheduled
+relative to the preceding selected periodic snapshot, so their counts need not
+match the producer's aligned one-second samples.
+
+The +100 ppm capture identifies a specific slow ALSA wait at producer-relative
+time 4.676741 seconds: `snd_pcm_writei` returned `-EAGAIN` and the subsequent
+`snd_pcm_wait` took 29.082339 ms before returning 1 (ready). During that
+iteration queue depth rose from 671 to 2,111 frames while source-consumption and
+device-submission counts did not advance. The 1,440-frame increase is exactly
+three producer blocks. The next iteration began after a 29.122803 ms gap and
+successfully submitted 440 frames. The device status after the wait reported
+`RUNNING`, 432 available frames, and 569 delay frames; there was no counted
+underrun. This localizes this particular queue buildup to time spent inside
+the wait, including any preemption, rather than a producer wake-up delay.
+It does not distinguish scheduler delay from ALSA/device readiness behavior,
+nor establish the cause of the earlier, larger excursion or underruns.
+
+The -100 ppm capture selected no threshold-exceeding gaps/writes/waits, write
+errors, wait errors/timeouts, or correction-limit transitions. Its periodic
+snapshots do not establish run-wide sub-threshold timing maxima. Instrumentation
+remains an observer effect, so clean captures do not qualify the uninstrumented
+path or erase previous failures.
+
+Both result hashes matched the retrieved evidence. The demo was restored after
+each run; final checks confirmed its service active, PCM `RUNNING`, the EVL
+router present, and no failed systemd units. Temporary experiment files were
+removed from H4 after retaining the JSON, PCM, context, and scheduling evidence
+in the session. No installed binary, configuration, or image was changed.
+
+### Wait Scheduling-Accounting Diagnostics (2026-10-21)
+
+Read-only inspection found no tracefs scheduler-event interface or installed
+`perf`/`trace-cmd` on the H4 kernel, but its per-thread `schedstat` counters are
+available. A separate `--wait-scheduling 1` option now brackets each ALSA wait
+with bounded reads of the in-band worker's CPU-runtime, runnable-delay, and
+timeslice counters. It requires backend-event capture and reports counter-read
+windows separately from actual wait duration. This does not change kernel
+accounting settings or the playback policy; it does add diagnostic file-I/O
+overhead and cannot provide definitive scheduler/IRQ attribution.
+
+Nine targeted native audio regressions passed, including scheduling-counter
+parsing/real reads and enabled/disabled probe modes. The EVL cross-build and
+isolated QEMU runtime gate passed upstream EVL sanity checks, audio regressions,
+and the scheduling-enabled null probe with no capture errors. PipeWire/NONE
+compatibility checks passed. A null PCM does not normally exercise the
+`-EAGAIN` wait path, so physical capture remains required to validate useful
+around-wait accounting evidence.
+
+### Physical Wait Scheduling-Accounting Captures (2026-10-21)
+
+With operator approval, the same diagnostic probe additionally enabled
+`--wait-scheduling 1` for both one-hour physical producer-offset runs. The
+probe and PCM geometry matched the previous physical captures: 48 kHz stereo,
+480-frame producer blocks, S16_LE, 240-frame device periods, and a 960-frame
+device buffer. Both used `start_threshold=960`; no injected jitter or external
+load was used.
+
+| Producer offset | Elapsed | Max producer lateness | Rejected / underruns / missing frames / failures | Queue high-water / end / capacity | Max correction | Captured events |
+| --- | --- | --- | --- | --- | --- | --- |
+| +100 ppm | 3599.630 s | 21,766 ns | 0 / 0 / 0 / 0 | 4,288 / 2,285 / 16,384 frames | 500 ppm | 4,725 |
+| -100 ppm | 3600.350 s | 20,895 ns | 0 / 0 / 0 / 0 | 1,920 / 1,664 / 16,384 frames | 348 ppm | 3,595 |
+
+Both runs exited zero with monotonic producer and worker timelines, and no
+telemetry/event overflow, dropped events, counter-read failures, or ALSA status
+query failures. The +100 ppm capture retained three slow waits near the initial
+queue excursion, at producer-relative times 8.096430, 8.126277, and 8.167427
+seconds. Each ALSA write first returned `-EAGAIN`; the following waits lasted
+29.483543, 25.622074, and 29.312958 ms before returning ready. Their queue
+depths rose by exactly 1,440 frames each: 717 -> 2,157, 1,685 -> 3,125, and
+2,589 -> 4,029. No source frames were consumed or device frames submitted
+during each wait. The periodic producer sample at 8 seconds showed 2,129
+queued frames, consistent with the middle of this short burst.
+
+Across those same wait intervals, the worker's cumulative scheduler-accounting
+deltas reported **zero runnable-delay nanoseconds**, 150,013-450,744 ns of CPU
+runtime, and one timeslice per wait. Counter reads bracketed the wait with
+29.491257, 25.630249, and 29.318628 ms elapsed, so nearly all observed wall
+time was in the wait interval, not counter-read overhead. The ALSA call returned
+ready and subsequent device status was `RUNNING`; status samples reported
+432-456 available frames and 548-731 delay frames. This evidence supports the
+worker being asleep/blocked within the ALSA wait rather than runnable and
+waiting for ordinary Linux CPU scheduling during these events. It does not
+distinguish ALSA plugin wait semantics, driver/interrupt progress, or device
+readiness, and scheduler-accounting granularity remains a limitation.
+
+The +100 ppm run did reach the configured +500 ppm correction limit at some
+other time, but the three slow-wait events themselves had corrections of
+-300, -58, and +167 ppm. In the -100 ppm run, no wait exceeded the 20 ms event
+threshold; the maximum retained `-EAGAIN` wait was 9.764 ms, with zero reported
+runnable delay. There were no underruns in either run. Thus, the captures
+associate a transient queue surge with long ALSA waits without reproducing the
+historical XRUNs, and show that correction saturation is a separate event.
+They do not resolve why the earlier one-hour runs reported underruns.
+
+Results were hash-verified and retained in the session evidence. The demo was
+restored after each run; final checks confirmed its service active, PCM
+`RUNNING`, the EVL router present, and no failed systemd units. Temporary probe,
+scripts, and raw copies were removed from H4. No installed binary,
+configuration, or image was changed.
+
 ## Listening Check (2026-10-19)
 
 The operator approved three 30-second probe segments: nominal cadence, +100 ppm,
@@ -490,10 +685,10 @@ image or config was changed.
 
 - Exercise physical watchdog-triggered fallback and recovery; no backup was
   made, so establish an attended recovery plan first.
-- Investigate why the earlier one-hour H4 runs saturated correction and
-  underrun while the telemetry-enabled repeats did not; capture negotiated PCM
-  geometry and repeat under controlled conditions before closing the
-  clock-stability gate.
+- Investigate transient backend/device progress around queue excursions:
+  controlled repeats confirmed matching PCM geometry and reproduced correction
+  saturation without underruns, but the original underruns remain unexplained.
+  Keep the clock-stability gate open.
 - Evolve the simple oscillator into a synth voice with note input and an
   integrated ADSR envelope, then repeat the cold-start listening check; the
   intermittent demo onset click remains unresolved.

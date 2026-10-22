@@ -2,6 +2,7 @@
 #include <musicrat/config.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <string>
 
@@ -55,5 +56,23 @@ int main() {
             <= backend->queue_capacity());
         backend->close();
         assert(!backend->write(block));
+    }
+    std::array<musicrat::backends::audio::AudioOutputDiagnosticEvent, 8> events{};
+    musicrat::backends::audio::AudioOutputDiagnostics capture{.events = events};
+    auto diagnostic_config = null_config;
+    diagnostic_config.diagnostics = &capture;
+    for (unsigned attempt = 0; attempt < 2; ++attempt) {
+        capture.count = events.size();
+        capture.dropped_events = 42;
+        assert(backend->open(diagnostic_config));
+        backend->close();
+        assert(capture.supported);
+        assert(capture.count <= events.size());
+        assert(capture.dropped_events == 0);
+        assert(capture.device_period_frames > 0);
+        assert(capture.device_buffer_frames >= capture.device_period_frames);
+        assert(capture.device_sample_rate_hz == null_config.sample_rate_hz);
+        assert(capture.slow_operation_threshold_ns > 0);
+        assert(capture.start_timestamp_ns > 0);
     }
 }
