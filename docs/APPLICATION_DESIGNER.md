@@ -378,6 +378,20 @@ switches are not LVGL input devices: their platform adapters emit semantic
 control events through the hardware endpoint and binding model independently of
 the display renderer.
 
+The Application Designer projects each LVGL keyboard widget into the unified Graph
+routing canvas as a connectable note source. These nodes are views of the
+surface widgets, not additional launchable modules. Note cables and the UI
+inspector's Note targets selector edit the same `note_targets` references
+(stable module and port IDs); a keyboard can drive multiple instruments.
+Both views use the same catalog of note-domain synchronized inputs with the
+exact `NoteEventBlock` payload. Occupied or incompatible targets are rejected.
+Legacy `note_target_module_id` projects are still readable.
+
+Export resolves these references to the display adapter's note output and each
+target's descriptor-indexed `synced_inputs` entry. All keyboards on one display
+share that adapter's note stream. Independent note streams require separate
+display adapters. Node positions and note cables persist with the project.
+
 The schema describes intent, not pixels. Renderer-specific overrides are
 allowed under namespaced optional fields and must not alter control semantics.
 
@@ -483,11 +497,15 @@ from `musicrat_parameters`, validates domain and payload compatibility, and
 exports positional CommRaT routes. The Application inspector creates, edits,
 and deletes persistent bindings across published semantic endpoints and
 automatable parameters, including mapping mode, pickup, transforms, priority,
-and optional feedback destinations. The Bindings canvas projects device and
-surface endpoints onto writable automatable module parameters. Dragging between
-compatible handles creates a binding; selecting its edge opens the same binding
-editor, and feedback is shown as a distinct reverse path. Module-flow and
-binding positions are persisted independently. The top-level Hardware workspace
+and optional feedback destinations. A single Graph canvas projects physical
+audio/note routes, module parameter/action targets, UI widgets, hardware
+endpoints, parameter state, and telemetry feedback. Dragging between compatible
+handles creates the appropriate route or binding; selecting a control edge opens
+its mapping inspector, and feedback is a distinct reverse cable. UI elements are
+blue, hardware elements amber, real modules green, and implementation modules
+muted purple. Node positions persist in `musicrat_designer.graph_positions`,
+with existing module, binding-owner and keyboard positions used as fallbacks.
+The top-level Hardware workspace
 offers pre-defined knobs, faders, motor faders, encoders, buttons, switches, and
 displays. Users place and name components and choose parameter targets; semantic
 endpoint details, motor feedback, display surfaces, fixed dimensions, and driver
@@ -502,12 +520,30 @@ graph, deck, and UI models are covered by unit tests, including semantic action,
 observation, feedback, derived-control, layout, and logical driver-manifest
 behavior.
 
-The two canvases intentionally expose different parameter abstractions. A
-binding-canvas parameter is a logical destination identified by module and
-parameter ID. Module-canvas `Automation Events` and `Parameter State` ports are
-physical runtime transports carrying bounded event or snapshot blocks for many
-parameter IDs. Optional parameter transports are collapsed under Advanced
-Ports, while connected and required transports remain visible.
+Named parameter handles are logical destinations identified by module and
+parameter ID, not physical ports. Only writable automatable parameters backed
+by the exact typed parameter-event transport are connectable. Startup-only
+settings remain editable in the inspector. `Automation Events` and `Parameter
+State` ports are physical runtime transports carrying bounded event or snapshot
+blocks for many parameter IDs; unconnected transport plumbing is hidden by
+default and available through Advanced Ports. UI selectors and the graph use
+the same validated target catalogs.
+
+The launch compiler adds intermediate mappers, state/telemetry adapters,
+feedback routers, display sinks, and widget mergers where supported. These
+modules are hidden by default. Show implementation modules displays configured
+implementation modules and the compiler's actual generated module/route
+projection, with generated nodes and edges read-only. It does not persist a
+second editable graph or duplicate generated modules during save/import.
+Incomplete or unsupported graphs produce explicit preview/export errors;
+missing installed descriptors are identified rather than guessed.
+
+UI parameter controls automatically display authoritative state when available.
+`parameter_feedback: false` on a widget disables that reverse path without
+removing its parameter-control binding; omission retains legacy feedback
+behavior. Hardware feedback is associated with the existing control binding.
+Device adapters and control-bus support retain their existing launch compiler
+requirements; the unified canvas does not imply unsupported runtime routes work.
 
 The built-in note-aware catalog is a design fixture until launchable note-source
 and instrument modules exist. The local host now provides automatic installed

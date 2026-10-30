@@ -1,7 +1,6 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import {
-  createDefaultBinding,
   endpointFromKey,
   endpointKey,
   endpointOptions,
@@ -51,29 +50,36 @@ export function BindingEditor({
   }
   const selected = control?.bindings.find((binding) => binding.id === activeId)
     ?? control?.bindings[0]
+  const widgetBinding = control?.surfaces.some((surface) =>
+    surface.widgets.some((widget) => widget.binding_id === selected?.id))
 
   const update = (change: (binding: ControlBinding) => ControlBinding) => {
     if (!control || !selected) return
+    const replacement = change(selected)
     onChange({
       ...control,
       bindings: control.bindings.map((binding) =>
-        binding === selected ? change(binding) : binding),
+        binding === selected ? replacement : binding),
+      surfaces: control.surfaces.map((surface) => ({ ...surface,
+        widgets: surface.widgets.map((widget) => widget.binding_id === selected.id
+          ? { ...widget, binding_id: replacement.id } : widget),
+      })),
     })
-  }
-
-  const addBinding = () => {
-    if (!control) return
-    const binding = createDefaultBinding(control, modules)
-    if (!binding) return
-    onChange({ ...control, bindings: [...control.bindings, binding] })
-    selectBinding(binding.id)
   }
 
   const deleteBinding = () => {
     if (!control || !selected) return
     const index = control.bindings.indexOf(selected)
     const bindings = control.bindings.filter((binding) => binding !== selected)
-    onChange({ ...control, bindings })
+    onChange({ ...control, bindings,
+      surfaces: control.surfaces.map((surface) => ({ ...surface,
+        widgets: surface.widgets.map((widget) => widget.binding_id === selected.id ? {
+          ...widget, binding_id: undefined,
+          parameter: widget.parameter_feedback !== false ? widget.parameter : undefined,
+          route: widget.parameter_feedback !== false ? 'feedback' : 'control',
+        } : widget),
+      })),
+    })
     selectBinding(bindings[Math.min(index, bindings.length - 1)]?.id ?? null)
   }
 
@@ -87,15 +93,7 @@ export function BindingEditor({
 
   return <section className="binding-editor">
     <div className="section-heading">
-      <h3>Bindings</h3>
-      <button
-        className="mini-icon-button"
-        type="button"
-        title="Add binding"
-        aria-label="Add binding"
-        disabled={!control || sources.length === 0 || targets.length === 0}
-        onClick={addBinding}
-      ><Plus size={15} /></button>
+      <h3>Binding settings</h3>
     </div>
 
     {!control || sources.length === 0 || targets.length === 0
@@ -122,14 +120,19 @@ export function BindingEditor({
           /></label>
           <label><span>Source</span><select
             aria-label="Binding source"
+            disabled={widgetBinding}
             value={endpointKey(selected.source)}
             onChange={(event) => {
               const source = endpointFromKey(event.target.value)
               if (source) update((binding) => ({ ...binding, source }))
             }}
-          >{sources.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+          >{sources.filter((option) => widgetBinding || !control.surfaces.some((surface) =>
+            surface.id === option.reference.owner_id && surface.widgets.some((widget) =>
+              widget.endpoint_id === option.reference.endpoint_id)))
+            .map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
           <label><span>Target</span><select
             aria-label="Binding target"
+            disabled={widgetBinding}
             value={parameterTargetKey(selected.target.module_id, selected.target.parameter_id)}
             onChange={(event) => {
               const target = parameterTargetFromKey(event.target.value)
@@ -162,12 +165,14 @@ export function BindingEditor({
           /></label>
           <label><span>Feedback</span><select
             aria-label="Feedback endpoint"
+            disabled={widgetBinding}
             value={selected.feedback ? endpointKey(selected.feedback) : ''}
             onChange={(event) => {
               const feedback = endpointFromKey(event.target.value)
               update((binding) => ({ ...binding, feedback }))
             }}
           ><option value="">none</option>{feedbackTargets.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+          {widgetBinding && <p className="empty-state">Edit widget routing and feedback using Graph cables or the UI inspector.</p>}
 
           <div className="binding-subheading">Transform</div>
           <label><span>Curve</span><select aria-label="Transform curve"

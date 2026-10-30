@@ -1,0 +1,137 @@
+{
+  "app_name": "MusicRaTNoteKeyboardThroughEq",
+  "modules": [
+    {
+      "name": "LvglWidgetSink_1",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [
+        { "system_id": 60, "instance_id": 1 },
+        { "system_id": 61, "instance_id": 1 }
+      ],
+      "inputs": [],
+      "synced_inputs": [],
+      "period_ms": 10,
+      "params": {
+        "manifest_path": "@MUSICRAT_LVGL_MANIFEST_DIR@/note_keyboard.lvgl.json",
+        "display_instance_id": "display-1",
+        "width": 1600,
+        "height": 1000,
+        "backend": @MUSICRAT_LVGL_EXAMPLE_BACKEND@,
+        "device_path": "@MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH@",
+        "input_device_path": "@MUSICRAT_LVGL_EXAMPLE_INPUT_DEVICE_PATH@",
+        "connector_id": -1,
+        "window_title": "MusicRaT Keyboard Synth + EQ",
+        "note_source_endpoint_id": 1,
+        "note_channel": 0,
+        "device_id": 1,
+        "control_bindings": [
+          { "widget_id": "low-eq", "endpoint_id": 1, "origin_id": 1, "kind": 0 },
+          { "widget_id": "mid-eq", "endpoint_id": 2, "origin_id": 2, "kind": 0 },
+          { "widget_id": "high-eq", "endpoint_id": 3, "origin_id": 3, "kind": 0 }
+        ]
+      }
+    },
+    {
+      "name": "ControlMapper_1",
+      "module_class": "MusicRaTControlMapper",
+      "outputs": [{ "system_id": 20, "instance_id": 1 }],
+      "inputs": [{ "source_system_id": 60, "source_instance_id": 1 }],
+      "synced_inputs": [],
+      "params": { "bindings": [
+        {
+          "binding_id": 1, "source_device_id": 1, "source_endpoint_id": 1,
+          "target_parameter_id": 2, "source_kind": 0, "mode": 0, "curve": 0,
+          "pickup": 0, "source_minimum": 0.0, "source_maximum": 1.0,
+          "target_minimum": -24.0, "target_maximum": 24.0, "scale": 1.0,
+          "offset": 0.0, "dead_zone": 0.0, "quantization": 0.0,
+          "hysteresis": 0.0, "pickup_tolerance": 0.01, "initial_value": 0.5,
+          "invert": false
+        },
+        {
+          "binding_id": 2, "source_device_id": 1, "source_endpoint_id": 2,
+          "target_parameter_id": 4, "source_kind": 0, "mode": 0, "curve": 0,
+          "pickup": 0, "source_minimum": 0.0, "source_maximum": 1.0,
+          "target_minimum": -24.0, "target_maximum": 24.0, "scale": 1.0,
+          "offset": 0.0, "dead_zone": 0.0, "quantization": 0.0,
+          "hysteresis": 0.0, "pickup_tolerance": 0.01, "initial_value": 0.5,
+          "invert": false
+        },
+        {
+          "binding_id": 3, "source_device_id": 1, "source_endpoint_id": 3,
+          "target_parameter_id": 7, "source_kind": 0, "mode": 0, "curve": 0,
+          "pickup": 0, "source_minimum": 0.0, "source_maximum": 1.0,
+          "target_minimum": -24.0, "target_maximum": 24.0, "scale": 1.0,
+          "offset": 0.0, "dead_zone": 0.0, "quantization": 0.0,
+          "hysteresis": 0.0, "pickup_tolerance": 0.01, "initial_value": 0.5,
+          "invert": false
+        }
+      ] }
+    },
+    {
+      "name": "ThreeOscillator_1",
+      "module_class": "MusicRaTThreeOscillator",
+      "outputs": [
+        { "system_id": 10, "instance_id": 1 },
+        { "system_id": 20, "instance_id": 2 }
+      ],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 61, "source_instance_id": 1 }],
+      "period_ms": 10,
+      "params": {
+        "sample_rate_hz": 48000.0,
+        "master_gain": 0.12,
+        "envelope_ms": 8.0,
+        "amplitude_attack_ms": 8.0,
+        "amplitude_decay_ms": 120.0,
+        "amplitude_sustain_level": 0.7,
+        "amplitude_release_ms": 180.0,
+        "filter_mode": 1,
+        "filter_cutoff_hz": 1200.0,
+        "filter_resonance": 0.9,
+        "filter_attack_ms": 12.0,
+        "filter_decay_ms": 220.0,
+        "filter_sustain_level": 0.2,
+        "filter_release_ms": 150.0,
+        "filter_env_amount_octaves": 2.0,
+        "oscillator_1_waveform": 0,
+        "oscillator_1_semitones": 0.0,
+        "oscillator_1_level": 1.0,
+        "oscillator_2_waveform": 2,
+        "oscillator_2_semitones": 12.0,
+        "oscillator_2_level": 0.2,
+        "oscillator_3_waveform": 3,
+        "oscillator_3_semitones": -12.0,
+        "oscillator_3_level": 0.1
+      }
+    },
+    {
+      "name": "ParametricEqualizer_1",
+      "module_class": "MusicRaTParametricEqualizer",
+      "outputs": [{ "system_id": 10, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "synced_inputs": [{ "source_system_id": 20, "source_instance_id": 1 }],
+      "params": {
+        "low_shelf_frequency_hz": 120.0,
+        "low_shelf_gain_db": 0.0,
+        "mid_frequency_hz": 1000.0,
+        "mid_gain_db": 0.0,
+        "mid_q": 0.7071067811865476,
+        "high_shelf_frequency_hz": 8000.0,
+        "high_shelf_gain_db": 0.0
+      }
+    },
+    {
+      "name": "AudioDeviceSink_1",
+      "module_class": "MusicRaTAudioDeviceSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "device_name": "",
+        "sample_rate_hz": 48000,
+        "channel_count": 1,
+        "period_frames": 480
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "app_name": "MusicRaTToneThroughFiltersToWav",
+  "modules": [
+    {
+      "name": "SineOscillator_1",
+      "module_class": "MusicRaTSineOscillator",
+      "outputs": [{ "system_id": 10, "instance_id": 1 }],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "frequency_hz": 440.0,
+        "amplitude": 0.2,
+        "sample_rate_hz": 48000.0,
+        "phase_offset": 0.0,
+        "enabled": true
+      }
+    },
+    {
+      "name": "DcBlocker_1",
+      "module_class": "MusicRaTDcBlocker",
+      "outputs": [{ "system_id": 10, "instance_id": 2 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": { "cutoff_hz": 20.0 }
+    },
+    {
+      "name": "BiquadFilter_1",
+      "module_class": "MusicRaTBiquadFilter",
+      "outputs": [{ "system_id": 10, "instance_id": 3 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 2 }],
+      "params": {
+        "filter_type": 0,
+        "frequency_hz": 2000.0,
+        "q": 0.7071067811865476,
+        "gain_db": 0.0
+      }
+    },
+    {
+      "name": "ParametricEqualizer_1",
+      "module_class": "MusicRaTParametricEqualizer",
+      "outputs": [{ "system_id": 10, "instance_id": 4 }],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 3 }],
+      "params": {
+        "low_shelf_frequency_hz": 120.0,
+        "low_shelf_gain_db": 0.0,
+        "mid_frequency_hz": 1000.0,
+        "mid_gain_db": 0.0,
+        "mid_q": 0.7071067811865476,
+        "high_shelf_frequency_hz": 8000.0,
+        "high_shelf_gain_db": 0.0
+      }
+    },
+    {
+      "name": "WavSink_1",
+      "module_class": "MusicRaTWavSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }],
+      "params": {
+        "path": "/tmp/musicrat-tone.wav",
+        "sample_rate_hz": 48000,
+        "channel_count": 1
+      }
+    }
+  ]
+}

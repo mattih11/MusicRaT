@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:note-keyboard",
+  "displays": [
+    {
+      "instance_id": "display-1",
+      "surface_id": "display-note-keyboard",
+      "widgets": [
+        {
+          "id": "low-eq-label",
+          "kind": "text",
+          "display_name": "LOW SHELF  (dB)",
+          "layout": { "x": 4, "y": 2, "width": 28, "height": 4 },
+          "route": "feedback"
+        },
+        {
+          "id": "low-eq",
+          "kind": "slider",
+          "display_name": "Low Shelf Gain",
+          "layout": { "x": 4, "y": 6, "width": 28, "height": 6 },
+          "route": "control"
+        },
+        {
+          "id": "mid-eq-label",
+          "kind": "text",
+          "display_name": "MID PEAK  (dB)",
+          "layout": { "x": 36, "y": 2, "width": 28, "height": 4 },
+          "route": "feedback"
+        },
+        {
+          "id": "mid-eq",
+          "kind": "slider",
+          "display_name": "Mid Gain",
+          "layout": { "x": 36, "y": 6, "width": 28, "height": 6 },
+          "route": "control"
+        },
+        {
+          "id": "high-eq-label",
+          "kind": "text",
+          "display_name": "HIGH SHELF  (dB)",
+          "layout": { "x": 68, "y": 2, "width": 28, "height": 4 },
+          "route": "feedback"
+        },
+        {
+          "id": "high-eq",
+          "kind": "slider",
+          "display_name": "High Shelf Gain",
+          "layout": { "x": 68, "y": 6, "width": 28, "height": 6 },
+          "route": "control"
+        },
+        {
+          "id": "keyboard",
+          "kind": "keyboard",
+          "display_name": "Performance Keyboard",
+          "layout": { "x": 1, "y": 16, "width": 98, "height": 82 },
+          "route": "control"
+        }
+      ]
+    }
+  ]
+}

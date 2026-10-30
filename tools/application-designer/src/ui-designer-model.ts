@@ -107,9 +107,10 @@ export function routeSurfaceWidget(
     ...widget,
     route,
     parameter: target,
+    parameter_feedback: route !== 'control',
     action: undefined,
     endpoint_id: route !== 'feedback' && definition.domain ? widget.id : undefined,
-    binding_id: controlsParameter ? nextBindingId(bindings) : undefined,
+    binding_id: controlsParameter ? nextBindingId([...bindings, ...actionBindings]) : undefined,
     action_binding_id: undefined,
   }
   const endpoint = route !== 'feedback' && definition.domain
@@ -159,6 +160,7 @@ export function routeSurfaceWidgetAction(
     ...widget,
     route,
     parameter: undefined,
+    parameter_feedback: false,
     action: target,
     endpoint_id: route !== 'feedback' && definition.domain ? widget.id : undefined,
     binding_id: undefined,

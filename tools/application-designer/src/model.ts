@@ -139,6 +139,8 @@ export interface MusicRaTDesignerState {
   schema_version: 1
   module_positions?: Record<string, DesignerPosition>
   binding_positions?: Record<string, DesignerPosition>
+  keyboard_positions?: Record<string, DesignerPosition>
+  graph_positions?: Record<string, DesignerPosition>
 }
 
 export type ControlValueDomain =
@@ -277,12 +279,49 @@ export interface SurfaceWidget {
   layout: { x: number; y: number; width: number; height: number }
   route: 'control' | 'feedback' | 'bidirectional'
   parameter?: ParameterTarget
+  parameter_feedback?: boolean
   action?: ActionTarget
   observable?: ObservableReference
+  note_target_module_id?: string
+  note_targets?: NoteTarget[]
   endpoint_id?: string
   binding_id?: string
   action_binding_id?: string
   observation_binding_id?: string
+}
+
+export interface NoteTarget {
+  module_id: string
+  port_id: string
+}
+
+export const noteEventPayload = 'CommRaT::Messages::NoteEventBlock'
+
+export function noteInputTargets(modules: DesignerModule[]) {
+  return modules.flatMap((module) => portsOf(module.descriptor)
+    .filter((port) => port.direction === 'synced_input' && port.domain === 'note'
+      && payloadType(module.descriptor, port) === noteEventPayload)
+    .map((port) => ({
+      module_id: module.id,
+      port_id: port.id,
+      label: `${module.id} / ${port.display_name}`,
+    })))
+}
+
+export function keyboardNoteTargets(widget: SurfaceWidget, modules: DesignerModule[]): NoteTarget[] {
+  if (widget.note_targets) return widget.note_targets
+  if (!widget.note_target_module_id) return []
+  const targets = noteInputTargets(modules)
+    .filter((target) => target.module_id === widget.note_target_module_id)
+  return targets.length === 1 ? targets.map(({ module_id, port_id }) => ({ module_id, port_id }))
+    : [{ module_id: widget.note_target_module_id, port_id: '' }]
+}
+
+export function keyboardNoteRoutes(control: MusicRaTControlProject | undefined, modules: DesignerModule[]) {
+  return (control?.surfaces ?? []).filter((surface) => surface.target === 'lvgl')
+    .flatMap((surface) => surface.widgets.filter((widget) => widget.kind === 'keyboard')
+      .flatMap((widget) => keyboardNoteTargets(widget, modules)
+        .map((target) => ({ surface, widget, target }))))
 }
 
 export interface ControlSurface {
@@ -662,11 +701,35 @@ export function validateWorkspace(workspace: DesignerWorkspace): ValidationIssue
   const issues = workspace.connections.flatMap((connection) =>
     validateConnection(workspace.modules, connection, workspace.connections))
   issues.push(...validateControlProject(workspace.source.musicrat_control, workspace.modules))
+  const keyboardRoutes = keyboardNoteRoutes(workspace.source.musicrat_control, workspace.modules)
+  const noteTargets = noteInputTargets(workspace.modules)
+  for (const [index, route] of keyboardRoutes.entries()) {
+    const { target, widget } = route
+    if (!workspace.source.musicrat_control?.deck?.elements.some((element) =>
+      `display-${element.id}` === route.surface.id
+      && componentDefinition(element.component_id)?.kind === 'display')) {
+      issues.push({ target: widget.id, message: `Keyboard '${widget.id}' requires an LVGL hardware display before export.` })
+    }
+    if (!noteTargets.some((candidate) =>
+      candidate.module_id === target.module_id && candidate.port_id === target.port_id)) {
+      issues.push({ target: widget.id, message: `Keyboard '${widget.id}' targets a missing or incompatible note input.` })
+    }
+    if (workspace.connections.some((connection) =>
+      connection.target_module_id === target.module_id && connection.target_port_id === target.port_id)
+        || keyboardRoutes.slice(0, index).some((other) =>
+          other.target.module_id === target.module_id && other.target.port_id === target.port_id)) {
+      issues.push({ target: widget.id, message: `Keyboard note input '${target.module_id} / ${target.port_id}' is already routed.` })
+    }
+  }
   for (const module of workspace.modules) {
     for (const port of portsOf(module.descriptor)) {
       if (port.required && ['input', 'synced_input', 'remote'].includes(port.direction)) {
         const connected = workspace.connections.some((connection) =>
           connection.target_module_id === module.id && connection.target_port_id === port.id)
+          || keyboardRoutes.some(({ target }) =>
+            target.module_id === module.id && target.port_id === port.id
+            && noteTargets.some((candidate) =>
+              candidate.module_id === module.id && candidate.port_id === port.id))
         if (!connected) {
           issues.push({ target: module.id, message: `${port.display_name} requires a connection.` })
         }
@@ -706,9 +769,9 @@ export function compileApplication(
       module_class: module.descriptor.module_class,
       outputs: (module.descriptor.outputs ?? []).map((_, index) =>
         outputAddresses.get(`${module.id}:${index}`)!),
+      inputs: [],
       params: module.source.params ?? module.descriptor.params_defaults ?? {},
     }
-    delete compiled.inputs
     delete compiled.synced_inputs
     delete compiled.remotes
 

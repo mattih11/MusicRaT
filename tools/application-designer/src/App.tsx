@@ -1,30 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MiniMap,
-  ReactFlow,
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
-  type Connection,
-  type Edge,
-  type EdgeChange,
-  type NodeChange,
-} from '@xyflow/react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { type Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { ArrowLeft, Boxes, Cpu, Download, FileJson, FolderOpen, LayoutDashboard, Plus, Save, Search, SlidersHorizontal, Upload, Waves } from 'lucide-react'
 import './App.css'
-import { BindingCanvas } from './BindingCanvas'
 import { BindingEditor } from './BindingEditor'
 import { compileLaunchApplication } from './control-compiler'
 import { demoApplication, demoDescriptors } from './demo'
 import { ControlLearn } from './ControlLearn'
 import { compileDeckArtifacts } from './deck-compiler'
 import { DeckEditor } from './DeckEditor'
-import { ModuleNodeView, type ModuleNode } from './ModuleNode'
-import { isAdvancedModulePort } from './module-node-model'
+import { type ModuleNode } from './ModuleNode'
+import { UnifiedGraph, type GraphSelection } from './UnifiedGraph'
+import { GraphConnectionSettings } from './GraphConnectionSettings'
+import { disconnectGraph } from './unified-graph-model'
 import {
   isImplementationModule,
   moduleDisplayName,
@@ -36,7 +24,6 @@ import {
   importApplication,
   parametersOf,
   portsOf,
-  validateConnection,
   validateWorkspace,
   type ApplicationDocument,
   type DesignerConnection,
@@ -50,8 +37,6 @@ import {
   saveHostedProject,
   type ProjectSummary,
 } from './project-api'
-
-const nodeTypes = { musicratModule: ModuleNodeView }
 
 function workspaceToNodes(workspace: DesignerWorkspace): ModuleNode[] {
   return workspace.modules.map((module) => ({
@@ -118,6 +103,7 @@ function App() {
   const [nodes, setNodes] = useState<ModuleNode[]>(workspaceToNodes(initialWorkspace))
   const [edges, setEdges] = useState<Edge[]>(workspaceToEdges(initialWorkspace))
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [graphSelection, setGraphSelection] = useState<GraphSelection>({})
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('Demo graph is valid and ready to export.')
   const [catalogSource, setCatalogSource] = useState<'demo' | 'installed'>('demo')
@@ -125,7 +111,7 @@ function App() {
   const [selectedProjectName, setSelectedProjectName] = useState('')
   const [hostedProject, setHostedProject] = useState<{ name: string; revision: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  const [canvasView, setCanvasView] = useState<'modules' | 'bindings' | 'hardware' | 'ui'>('modules')
+  const [canvasView, setCanvasView] = useState<'graph' | 'hardware' | 'ui'>('graph')
   const [selectedBindingId, setSelectedBindingId] = useState<string | null>(null)
   const [showAdvancedPorts, setShowAdvancedPorts] = useState(false)
   const [showImplementationModules, setShowImplementationModules] = useState(false)
@@ -134,20 +120,18 @@ function App() {
 
   const workspace = currentWorkspace(appName, nodes, edges, sourceDocument)
   const issues = validateWorkspace(workspace)
+  if (issues.length === 0) {
+    try {
+      compileLaunchApplication(workspace)
+    } catch (error) {
+      issues.push({ target: 'launch', message: error instanceof Error ? error.message : 'Application cannot be compiled.' })
+    }
+  }
   const selected = nodes.find((node) => node.id === selectedId)
+  const selectedParameters = selected ? parametersOf(selected.data.descriptor) : []
   const pickerEntries = modulePickerEntries(catalog, query, showImplementationModules)
   const hiddenModuleCount = catalog.filter(isImplementationModule).length
-  const moduleCanvasNodes = nodes.map((node) => ({
-    ...node,
-    data: {
-      ...node.data,
-      showAdvancedPorts: showAdvancedPorts || portsOf(node.data.descriptor).some((port) =>
-        isAdvancedModulePort(node.data.descriptor, port)
-        && edges.some((edge) =>
-          (edge.source === node.id && edge.sourceHandle === port.id)
-          || (edge.target === node.id && edge.targetHandle === port.id))),
-    },
-  }))
+  const selectedElement = graphSelection.node
 
   useEffect(() => {
     const controller = new AbortController()
@@ -187,24 +171,17 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  const onNodesChange = (changes: NodeChange<ModuleNode>[]) => setNodes((items) => applyNodeChanges(changes, items))
-  const onEdgesChange = (changes: EdgeChange[]) => setEdges((items) => applyEdgeChanges(changes, items))
-  const onConnect = (connection: Connection) => {
-    if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return
-    const candidate: DesignerConnection = {
-      id: `${connection.source}:${connection.sourceHandle}->${connection.target}:${connection.targetHandle}`,
-      source_module_id: connection.source,
-      source_port_id: connection.sourceHandle,
-      target_module_id: connection.target,
-      target_port_id: connection.targetHandle,
-    }
-    const problem = validateConnection(workspace.modules, candidate, workspace.connections)[0]
-    if (problem) {
-      setMessage(problem.message)
-      return
-    }
-    setEdges((items) => addEdge({ ...connection, id: candidate.id }, items))
-    setMessage('Connection added.')
+  const updateWorkspace = (updated: DesignerWorkspace) => {
+    setSourceDocument(updated.source)
+    setNodes(workspaceToNodes(updated))
+    setEdges(workspaceToEdges(updated))
+  }
+
+  const selectGraphElement = (selection: GraphSelection) => {
+    setGraphSelection(selection)
+    setSelectedId(selection.node?.generated ? null : selection.node?.module_id ?? null)
+    setSelectedBindingId(selection.route?.kind === 'binding' || selection.route?.kind === 'feedback'
+      ? selection.route.id : null)
   }
 
   const addModule = (descriptor: ModuleDescriptor) => {
@@ -223,7 +200,8 @@ function App() {
         source: { name: id, module_class: descriptor.module_class, params: structuredClone(descriptor.params_defaults ?? {}) },
       },
     }])
-    setCanvasView('modules')
+    setCanvasView('graph')
+    setGraphSelection({})
     setSelectedId(id)
   }
 
@@ -249,6 +227,7 @@ function App() {
       setSourceDocument(loaded.source)
       setNodes(workspaceToNodes(loaded))
       setEdges(workspaceToEdges(loaded))
+      selectGraphElement({})
       setHostedProject(null)
       setSelectedProjectName('')
       setMessage(`Opened ${application.app_name}.`)
@@ -266,7 +245,7 @@ function App() {
       setSourceDocument(loaded.source)
       setNodes(workspaceToNodes(loaded))
       setEdges(workspaceToEdges(loaded))
-      setSelectedId(null)
+      selectGraphElement({})
       setHostedProject({ name: project.name, revision: project.revision })
       setMessage(`Opened ${project.name}.`)
     } catch (error) {
@@ -333,22 +312,6 @@ function App() {
     control: NonNullable<ApplicationDocument['musicrat_control']>,
   ) => setSourceDocument((document) => ({ ...document, musicrat_control: control }))
 
-  const updateBindingPositions = (bindingPositions: Record<string, { x: number; y: number }>) => {
-    setSourceDocument((document) => ({
-      ...document,
-      musicrat_designer: {
-        ...document.musicrat_designer,
-        schema_version: 1,
-        binding_positions: bindingPositions,
-      },
-    }))
-  }
-
-  const selectBinding = (bindingId: string | null) => {
-    setSelectedId(null)
-    setSelectedBindingId(bindingId)
-  }
-
   return (
     <main className={`designer-shell${canvasView === 'hardware' || canvasView === 'ui' ? ' hardware-view' : ''}`}>
       <header className="topbar">
@@ -373,11 +336,11 @@ function App() {
       <aside className="catalog-panel">
         <div className="panel-heading"><div><span className="eyebrow">Catalog · {catalogSource}</span><h2>Modules</h2></div><span className="count">{pickerEntries.length}</span></div>
         <label className="search"><Search size={15} /><input aria-label="Search modules" placeholder="Filter modules" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-        {hiddenModuleCount > 0 && <label className="module-picker-advanced">
+        <label className="module-picker-advanced">
           <input type="checkbox" checked={showImplementationModules}
             onChange={(event) => setShowImplementationModules(event.target.checked)} />
           <span>Show implementation modules ({hiddenModuleCount})</span>
-        </label>}
+        </label>
         <div className="catalog-list">
           {pickerEntries.length === 0
             ? <p className="empty-state">No modules match this filter.</p>
@@ -388,18 +351,15 @@ function App() {
               </button>
             ))}
         </div>
-        <div className="domain-key"><span className="audio-dot" />Audio <span className="note-dot" />Notes <span className="parameter-dot" />Parameters</div>
+        <div className="domain-key"><span className="audio-dot" />Audio <span className="note-dot" />Notes <span className="parameter-dot" />Parameters
+          <span className="ui-dot" />UI <span className="hardware-dot" />Hardware <span className="feedback-dot" />Feedback</div>
       </aside>
 
       <section className="canvas" aria-label="Application graph">
         <div className="canvas-view-switcher" role="tablist" aria-label="Designer canvas">
-          <button type="button" role="tab" aria-selected={canvasView === 'modules'}
-            onClick={() => { setCanvasView('modules'); setSelectedBindingId(null) }}>
-            <Boxes size={14} /> Modules
-          </button>
-          <button type="button" role="tab" aria-selected={canvasView === 'bindings'}
-            onClick={() => { setCanvasView('bindings'); selectBinding(null) }}>
-            <SlidersHorizontal size={14} /> Bindings
+          <button type="button" role="tab" aria-selected={canvasView === 'graph'}
+            onClick={() => setCanvasView('graph')}>
+            <Boxes size={14} /> Graph
           </button>
           <button type="button" role="tab" aria-selected={canvasView === 'hardware'}
             onClick={() => { setCanvasView('hardware'); setSelectedId(null) }}>
@@ -410,7 +370,7 @@ function App() {
             <LayoutDashboard size={14} /> UI
           </button>
         </div>
-        {canvasView === 'modules' && <button className="advanced-ports-toggle" type="button"
+        {canvasView === 'graph' && <button className="advanced-ports-toggle" type="button"
           aria-pressed={showAdvancedPorts} title="Show optional automation and state ports"
           onClick={() => setShowAdvancedPorts((visible) => !visible)}>
           <SlidersHorizontal size={14} /> <span>Advanced ports</span>
@@ -421,40 +381,19 @@ function App() {
           : canvasView === 'ui'
           ? <UiDesigner control={sourceDocument.musicrat_control}
             modules={workspace.modules} onChange={updateControlProject} />
-          : canvasView === 'modules'
-          ? <ReactFlow<ModuleNode>
+          : <UnifiedGraph
               key={catalogSource}
-              nodes={moduleCanvasNodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onSelectionChange={({ nodes: selectedNodes }) =>
-                setSelectedId(selectedNodes[selectedNodes.length - 1]?.id ?? null)}
-              fitView
-              minZoom={0.35}
-              maxZoom={1.8}
-            >
-              <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#cad0d0" />
-              <Controls showInteractive={false} />
-              <MiniMap pannable zoomable nodeColor="#254c46" maskColor="rgba(235, 238, 234, 0.78)" />
-            </ReactFlow>
-          : <BindingCanvas
-              control={sourceDocument.musicrat_control}
-              modules={workspace.modules}
-              positions={sourceDocument.musicrat_designer?.binding_positions}
-              onControlChange={updateControlProject}
-              onPositionsChange={updateBindingPositions}
-              onSelectBinding={selectBinding}
+              workspace={workspace} catalog={catalog}
+              showImplementation={showImplementationModules} showAdvancedPorts={showAdvancedPorts}
+              onChange={updateWorkspace} onSelect={selectGraphElement} onMessage={setMessage}
             />}
       </section>
 
       <aside className="inspector-panel">
-        <div className="panel-heading"><div><span className="eyebrow">Inspector</span><h2>{selected?.id ?? 'Application'}</h2></div>
-          {selected
+        <div className="panel-heading"><div><span className="eyebrow">Inspector</span><h2>{selected?.id ?? selectedElement?.title ?? (graphSelection.route ? 'Connection' : 'Application')}</h2></div>
+          {selected || selectedElement || graphSelection.route
             ? <button className="mini-icon-button" type="button" title="Back to Application"
-                aria-label="Back to Application" onClick={() => setSelectedId(null)}>
+                aria-label="Back to Application" onClick={() => selectGraphElement({})}>
                 <ArrowLeft size={17} />
               </button>
             : <FileJson size={19} />}
@@ -463,10 +402,14 @@ function App() {
           <div className="inspector-content">
             <dl><dt>Class</dt><dd>{selected.data.descriptor.module_class}</dd><dt>Execution</dt><dd>{selected.data.descriptor.execution_mode ?? 'unspecified'}</dd></dl>
             <h3>Parameters</h3>
-            {parametersOf(selected.data.descriptor).length === 0 && <p className="empty-state">No published parameter metadata.</p>}
-            {parametersOf(selected.data.descriptor).map((parameter) => {
-              const value = selected.data.source.params?.[parameter.name] ?? ''
-              return <label className="parameter-field" key={parameter.id}><span>{parameter.display_name}<small>{parameter.unit}</small></span>
+            {selectedParameters.length === 0 && <p className="empty-state">No published parameter metadata.</p>}
+            {selectedParameters.map((parameter, index) => {
+              const value = selected.data.source.params?.[parameter.name]
+                ?? selected.data.descriptor.params_defaults?.[parameter.name] ?? ''
+              return <Fragment key={parameter.id}>
+                {parameter.group && selectedParameters[index - 1]?.group !== parameter.group
+                  && <h3>{parameter.group}</h3>}
+                <label className="parameter-field"><span>{parameter.display_name}<small>{parameter.unit}</small></span>
                 {parameter.kind === 'boolean'
                   ? <input type="checkbox" checked={Boolean(value)} onChange={(event) => updateParameter(parameter.name, event.target.checked)} />
                   : parameter.kind === 'choice'
@@ -474,33 +417,57 @@ function App() {
                     : parameter.kind === 'text'
                       ? <input type="text" value={String(value)} onChange={(event) => updateParameter(parameter.name, event.target.value)} />
                       : <input type="number" value={String(value)} min={parameter.minimum} max={parameter.maximum} step={parameter.step || 'any'} onChange={(event) => updateParameter(parameter.name, Number(event.target.value))} />}
-              </label>
+                </label>
+              </Fragment>
             })}
+          </div>
+        ) : selectedElement ? (
+          <div className="inspector-content">
+            <dl><dt>Type</dt><dd>{selectedElement.kind}</dd>
+              <dt>Element</dt><dd>{selectedElement.subtitle}</dd></dl>
+            {selectedElement.generated
+              ? <><p>Generated from the user-facing cables. Read-only; do not add this module manually.</p>
+                <pre className="generated-params">{JSON.stringify(selectedElement.params, null, 2)}</pre></>
+              : <><p>Drag controls to parameters/actions, notes to note inputs, or module state and telemetry to feedback inputs.</p>
+                <button type="button" className="primary-button" onClick={() =>
+                  setCanvasView(selectedElement.kind === 'ui' ? 'ui' : 'hardware')}>Edit layout</button></>}
           </div>
         ) : (
           <div className="inspector-content overview">
-            <strong>{nodes.length} modules · {edges.length} routes</strong>
+            {graphSelection.route && <>
+              <h3>{graphSelection.route.kind} connection</h3>
+              <GraphConnectionSettings workspace={workspace} route={graphSelection.route}
+                onChange={updateWorkspace} />
+              {graphSelection.route.kind === 'generated'
+                ? <p>Generated runtime route. Edit the corresponding user-facing cable.</p>
+                : <button type="button" className="danger-button" onClick={() => {
+                  updateWorkspace(disconnectGraph(workspace, [graphSelection.route!]))
+                  selectGraphElement({})
+                }}>Disconnect cable</button>}
+            </>}
+            <strong>{nodes.length} configured modules</strong>
             <ControlLearn
               control={sourceDocument.musicrat_control}
               modules={workspace.modules}
               onChange={updateControlProject}
               onSelectBinding={setSelectedBindingId}
             />
-            <BindingEditor
+            {(!graphSelection.route || selectedBindingId) && <BindingEditor
               control={sourceDocument.musicrat_control}
               modules={workspace.modules}
               onChange={updateControlProject}
               selectedBindingId={selectedBindingId}
               onSelectBinding={setSelectedBindingId}
-            />
+            />}
           </div>
         )}
       </aside>
 
       <footer className={`statusbar ${issues.length ? 'has-errors' : ''}`}>
         <span className="status-indicator" />
-        <strong>{issues.length ? `${issues.length} validation issue${issues.length === 1 ? '' : 's'}` : 'Ready'}</strong>
-        <span>{issues[0]?.message ?? message}</span>
+        <strong title={issues[0]?.message}>{issues.length ? `${issues.length} validation issue${issues.length === 1 ? '' : 's'}` : 'Ready'}</strong>
+        <span aria-live="polite">{message}</span>
+        {issues[0] && <span>{issues[0].message}</span>}
       </footer>
     </main>
   )

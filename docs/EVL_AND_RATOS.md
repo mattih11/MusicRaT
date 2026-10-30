@@ -246,8 +246,9 @@ reads to the in-band ALSA worker and `snd_pcm_avail_delay`/state queries on
 selected events, so compare instrumented results cautiously: it is an observer,
 not an unchanged timing environment.
 
-The probe preallocates its one-second telemetry capacity plus 8,192 event slots
-before opening the backend. The worker never allocates or prints events.
+The probe preallocates its one-second telemetry capacity plus 32,768 event
+slots before opening the backend, so longer probes have bounded but
+duration-scaled capture. The worker never allocates or prints events.
 `backend_diagnostics` is `null` when disabled; otherwise it includes negotiated
 device sample rate, period/buffer frames, capacity, dropped-event count, status
 query failures, and `events`. Full storage retains the first events, counts
@@ -309,7 +310,9 @@ worker, the backend opens `/proc/thread-self/schedstat` once and performs two
 bounded reads around each `snd_pcm_wait`. This is diagnostic-only Linux
 in-band file I/O, never producer/module-callback or EVL OOB work. It adds
 overhead on every wait, including waits that do not produce a retained event.
-The H4 kernel used here exposes these counters but no tracefs scheduler events.
+The confirmed H4 B image exposes these counters but not tracefs scheduler
+events; a temporary trace-capable A-slot trial is documented in the
+[H4 hardware capture](HARDWARE_VALIDATION.md#trace-correlated-h4-wait-capture).
 
 For retained events with a `write_result` of `-EAGAIN`, the extra fields are:
 
@@ -335,8 +338,52 @@ contention. Repeated long waits with zero runnable delay and little CPU-runtime
 support the worker being blocked/asleep inside the wait rather than runnable
 and waiting for ordinary Linux CPU scheduling; they still do not distinguish
 ALSA/plugin wait behavior, driver, interrupt, or device-readiness delays.
-No kernel scheduling settings are changed. A trace-capable kernel would still
-be needed for definitive wakeup-to-run/interrupt correlation.
+No kernel scheduling settings are changed by this probe option. Scheduler
+trace events are needed for direct wakeup-to-run timing, as measured in the H4
+trial, but do not by themselves identify driver/interrupt or device-readiness
+delays. Interpret IRQ-pipeline tracepoints separately from ordinary
+`irq_handler_entry`: pipeline entry/exit mark the initial IRQ pass, while an
+in-band handler can be deferred until pipeline synchronization. Their timestamp
+gap alone is not proof of late physical IRQ delivery; see the
+[H4 trace findings](HARDWARE_VALIDATION.md#hda-irq-correlation-capture-2026-10-23).
+A later filtered H4 capture associated one HDA handler with
+`__inband_irq_enable` during `kauditd` RCU callback processing, but did not
+identify what held the in-band stage stalled. Its probe-side backend recorder
+dropped events before the streamed trace began, so the two timelines could not
+be correlated for the later underruns; see the
+[filtered in-band re-enable follow-up](HARDWARE_VALIDATION.md#filtered-in-band-re-enable-follow-up-2026-10-24).
+A subsequent no-kprobe capture retained the complete probe event stream and
+again correlated slow ALSA waits with long HDA pipeline intervals. Its
+all-CPU scheduler follow-up measured median worker wake-to-run latency of
+2-11 microseconds, with a 1.57 ms maximum; all long pipeline-to-handler
+intervals overlapped `kauditd` execution on CPU0, but that remains correlation
+rather than proof of cause. See the
+[no-kprobe capture](HARDWARE_VALIDATION.md#no-kprobe-correlated-h4-capture-2026-10-24)
+and its [all-CPU scheduler follow-up](HARDWARE_VALIDATION.md#all-cpu-worker-scheduler-follow-up-2026-10-24).
+The filtered preemptirq follow-up captured 50 paired `kauditd` IRQ-off spans
+in `console_flush_all`. All 19 waits longer than 20 ms overlapped one of these
+spans and a long HDA pipeline/handler interval; both `-EPIPE` waits ended
+within about 50 microseconds of a deferred HDA handler running immediately
+after re-enable. Kernel-source review found that the legacy printk path calls
+the console writer with IRQ state saved, and the 8250 serial-console writer
+sends synchronously while holding an IRQ-saving UART lock. The H4 used
+`ttyS0` at 115200 baud, and no userspace `auditd` process was present, making
+audit fallback printing a plausible trigger. This substantially strengthens
+the mechanism hypothesis, but no intervention has yet tested causality, and
+the trace does not prove physical HDA IRQ masking or explain the audible
+oscillator clicks. See the
+[filtered preemptirq and console correlation](HARDWARE_VALIDATION.md#filtered-preemptirq-and-console-correlation).
+
+The stability result varied across repeated runs (including both zero and two
+underruns), so the output path is not qualified. A console-threshold
+comparison was started on unconfirmed A with the printk console level lowered
+to 3 while preserving kernel log-buffer and audit settings, but the
+one-hour capture was interrupted before completion. Its trace is truncated
+and the probe result was lost when A fell back to confirmed B; it yields no
+valid comparison. See the
+[interrupted console-threshold trial](HARDWARE_VALIDATION.md#console-threshold-causality-trial-interrupted-2026-10-25).
+The causality test and an audible oscillator listening check are deferred;
+the H4 is back on B with the interactive gain/pan demo running.
 
 Do not interrupt a live demo for automated testing without approval. CPU/I/O
 stress with the new queue metrics, producer/device clock-skew measurement,

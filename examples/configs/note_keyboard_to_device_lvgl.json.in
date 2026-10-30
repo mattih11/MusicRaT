@@ -1,0 +1,68 @@
+{
+  "app_name": "MusicRaTNoteKeyboard",
+  "modules": [
+    {
+      "name": "LvglWidgetSink_1",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [
+        { "system_id": 60, "instance_id": 1 },
+        { "system_id": 61, "instance_id": 1 }
+      ],
+      "inputs": [],
+      "synced_inputs": [],
+      "period_ms": 10,
+      "params": {
+        "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/note_keyboard.lvgl.json",
+        "display_instance_id": "display-1",
+        "width": 800,
+        "height": 480,
+        "backend": @MUSICRAT_LVGL_EXAMPLE_BACKEND@,
+        "device_path": "@MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH@",
+        "input_device_path": "@MUSICRAT_LVGL_EXAMPLE_INPUT_DEVICE_PATH@",
+        "connector_id": -1,
+        "window_title": "MusicRaT Note Keyboard",
+        "note_source_endpoint_id": 1,
+        "note_channel": 0,
+        "control_bindings": []
+      }
+    },
+    {
+      "name": "ThreeOscillator_1",
+      "module_class": "MusicRaTThreeOscillator",
+      "outputs": [
+        { "system_id": 10, "instance_id": 1 },
+        { "system_id": 20, "instance_id": 2 }
+      ],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 61, "source_instance_id": 1 }],
+      "period_ms": 10,
+      "params": {
+        "sample_rate_hz": 48000.0,
+        "master_gain": 0.2,
+        "envelope_ms": 5.0,
+        "oscillator_1_waveform": 0,
+        "oscillator_1_semitones": 0.0,
+        "oscillator_1_level": 1.0,
+        "oscillator_2_waveform": 1,
+        "oscillator_2_semitones": 0.0,
+        "oscillator_2_level": 0.0,
+        "oscillator_3_waveform": 2,
+        "oscillator_3_semitones": 0.0,
+        "oscillator_3_level": 0.0
+      }
+    },
+    {
+      "name": "AudioDeviceSink_1",
+      "module_class": "MusicRaTAudioDeviceSink",
+      "module_address": { "system_id": 40, "instance_id": 1 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 1 }],
+      "params": {
+        "device_name": "",
+        "sample_rate_hz": 48000,
+        "channel_count": 1,
+        "period_frames": 480
+      }
+    }
+  ]
+}

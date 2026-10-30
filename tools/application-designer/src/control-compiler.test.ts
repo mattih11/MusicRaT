@@ -62,6 +62,85 @@ const control: MusicRaTControlProject = {
 }
 
 describe('control launch compiler', () => {
+  it('emits required empty continuous input arrays for source modules', () => {
+    const workspace = importApplication(structuredClone(demoApplication), structuredClone(demoDescriptors))
+    const launch = compileLaunchApplication(workspace)
+    for (const module of launch.modules) expect(Array.isArray(module.inputs)).toBe(true)
+  })
+
+  it('routes an LVGL keyboard note output to a selected note input', () => {
+    const keyboardControl = structuredClone(control)
+    keyboardControl.deck = {
+      schema_version: 1,
+      panel: { width_mm: 160, height_mm: 90, thickness_mm: 3 },
+      elements: [{
+        id: 'keyboard-display',
+        component_id: 'touch-display-5in',
+        display_name: 'Keyboard Display',
+        position: { x_mm: 0, y_mm: 0 },
+      }],
+    }
+    keyboardControl.surfaces.push({
+      id: 'display-keyboard-display',
+      display_name: 'Keyboard',
+      target: 'lvgl',
+      endpoints: [],
+      widgets: [{
+        id: 'keyboard',
+        kind: 'keyboard',
+        display_name: 'Keyboard',
+        layout: { x: 5, y: 5, width: 90, height: 85 },
+        route: 'control',
+        note_target_module_id: 'ThreeOscillator_1',
+      }],
+    })
+    const workspace = workspaceWithControl(keyboardControl)
+    const noteModule = {
+      name: 'ThreeOscillator_1',
+      module_class: 'MusicRaTThreeOscillator',
+      outputs: [{ system_id: 10, instance_id: 7 }],
+      inputs: [],
+      synced_inputs: [],
+      params: {},
+    }
+    workspace.source.modules.push(noteModule)
+    workspace.modules.push({
+      id: noteModule.name,
+      descriptor: {
+        module_class: noteModule.module_class,
+        binary: '',
+        outputs: ['CommRaT::Messages::AudioBlock'],
+        synced_inputs: ['CommRaT::Messages::NoteEventBlock'],
+        descriptor_metadata: { musicrat_ports: { schema_version: 1, ports: [{
+          id: 'note_events',
+          display_name: 'Note Events',
+          direction: 'synced_input',
+          port_index: 0,
+          domain: 'note',
+          required: true,
+          max_connections: 1,
+        }] } },
+      },
+      source: noteModule,
+      position: { x: 0, y: 0 },
+    })
+
+    const application = compileLaunchApplication(workspace)
+    expect(application.modules[0].musicrat_generated).toBe('lvgl_widget_sink')
+    const sink = application.modules.find(
+      (module) => module.musicrat_generated === 'lvgl_widget_sink')!
+    const target = application.modules.find(
+      (module) => module.name === 'ThreeOscillator_1')!
+    expect(sink.outputs).toHaveLength(2)
+    expect(target.synced_inputs).toEqual([{
+      source_system_id: sink.outputs![1].system_id,
+      source_instance_id: sink.outputs![1].instance_id,
+    }])
+    expect(sink.params).toMatchObject({
+      note_source_endpoint_id: sink.params!.device_id,
+    })
+  })
+
   it('compiles stable strings into exact bounded mapper parameters', () => {
     const plan = compileControlPlan(workspaceWithControl(control))
 
@@ -507,7 +586,7 @@ describe('control launch compiler', () => {
     const mappers = application.modules.filter(
       (module) => module.module_class === 'MusicRaTControlMapper')
     expect(sink.musicrat_generated).toBe('lvgl_widget_sink')
-    expect(sink.outputs).toHaveLength(1)
+    expect(sink.outputs).toHaveLength(2)
     expect(sink.period_ms).toBe(10)
     expect(sink.synced_inputs).toEqual([{
       source_system_id: merger.outputs![0].system_id,

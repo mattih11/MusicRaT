@@ -99,8 +99,8 @@ public:
                     .surface_id = binding.surface_id,
                     .widget_id = binding.widget_id,
                     .property = WIDGET_PROPERTY_VALUE,
-                    .kind = WIDGET_VALUE_CONTINUOUS,
-                    .value = normalized,
+                    .kind = binding.value_kind,
+                    .value = binding.value_kind == WIDGET_VALUE_CHOICE ? state.value : normalized,
                     .active = normalized != 0.0,
                 });
                 ++result.mapped_count;
@@ -113,6 +113,8 @@ private:
     static bool valid_binding(
         const CommRaT::Parameters::CompiledParameterStateUiBinding& binding) noexcept {
         return binding.binding_id != CommRaT::Messages::INVALID_CONTROL_BINDING_ID
+            && (binding.value_kind == CommRaT::Messages::WIDGET_VALUE_CONTINUOUS
+                || binding.value_kind == CommRaT::Messages::WIDGET_VALUE_CHOICE)
             && binding.parameter_id != 0
             && !binding.surface_id.empty()
             && !binding.widget_id.empty()

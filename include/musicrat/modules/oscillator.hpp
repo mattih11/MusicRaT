@@ -43,6 +43,7 @@ public:
                 .minimum = 0.0,
                 .maximum = 24000.0,
                 .step = 0.1,
+                .choices = {},
             },
             {
                 .id = Parameters::OSCILLATOR_AMPLITUDE_PARAMETER_ID,
@@ -50,9 +51,11 @@ public:
                 .display_name = "Amplitude",
                 .group = "Oscillator",
                 .kind = PARAMETER_KIND_CONTINUOUS,
+                .unit = "x",
                 .minimum = 0.0,
                 .maximum = 1.0,
                 .step = 0.01,
+                .choices = {},
             },
             {
                 .id = Parameters::OSCILLATOR_SAMPLE_RATE_PARAMETER_ID,
@@ -64,6 +67,7 @@ public:
                 .minimum = 8000.0,
                 .maximum = 192000.0,
                 .step = 1.0,
+                .choices = {},
             },
             {
                 .id = Parameters::OSCILLATOR_PHASE_OFFSET_PARAMETER_ID,
@@ -75,6 +79,7 @@ public:
                 .minimum = 0.0,
                 .maximum = 1.0,
                 .step = 0.01,
+                .choices = {},
             },
             {
                 .id = Parameters::OSCILLATOR_ENABLED_PARAMETER_ID,
@@ -82,6 +87,8 @@ public:
                 .display_name = "Enabled",
                 .group = "Oscillator",
                 .kind = PARAMETER_KIND_BOOLEAN,
+                .unit = "",
+                .choices = {},
             },
         };
         return metadata;

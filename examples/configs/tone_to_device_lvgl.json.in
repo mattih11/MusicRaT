@@ -4,7 +4,10 @@
     {
       "name": "LvglWidgetSink_1",
       "module_class": "MusicRaTLvglWidgetSink",
-      "outputs": [{ "system_id": 60, "instance_id": 1 }],
+      "outputs": [
+        { "system_id": 60, "instance_id": 1 },
+        { "system_id": 61, "instance_id": 1 }
+      ],
       "inputs": [],
       "synced_inputs": [],
       "period_ms": 10,

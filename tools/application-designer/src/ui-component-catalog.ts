@@ -16,6 +16,7 @@ export const uiComponentCatalog: UiComponentDefinition[] = [
   { kind: 'button', name: 'Button', width: 22, height: 14, domain: 'trigger', default_route: 'control' },
   { kind: 'toggle', name: 'Toggle', width: 20, height: 14, domain: 'boolean', default_route: 'bidirectional' },
   { kind: 'choice', name: 'Choice', width: 30, height: 14, domain: 'choice', default_route: 'bidirectional' },
+  { kind: 'keyboard', name: 'Keyboard', width: 88, height: 58, default_route: 'control' },
   { kind: 'meter', name: 'Meter', width: 14, height: 48, default_route: 'feedback' },
   { kind: 'text', name: 'Value', width: 26, height: 12, default_route: 'feedback' },
 ]

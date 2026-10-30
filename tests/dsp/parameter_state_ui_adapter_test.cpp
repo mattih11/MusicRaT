@@ -74,4 +74,14 @@ int main() {
     invalid[0].parameter_maximum = invalid[0].parameter_minimum;
     assert(adapter.configure(invalid)
         == musicrat::dsp::ParameterStateUiAdapterConfigError::InvalidBinding);
+
+    auto choices = bindings;
+    choices[0].value_kind = WIDGET_VALUE_CHOICE;
+    assert(adapter.configure(choices) == musicrat::dsp::ParameterStateUiAdapterConfigError::None);
+    input.states[0].value = 20;
+    (void)adapter.process(input, output);
+    assert(output.events[0].kind == WIDGET_VALUE_CHOICE);
+    assert(output.events[0].value == 20);
+    choices[0].value_kind = WIDGET_VALUE_TEXT;
+    assert(adapter.configure(choices) == musicrat::dsp::ParameterStateUiAdapterConfigError::InvalidBinding);
 }

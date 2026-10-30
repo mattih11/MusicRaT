@@ -16,6 +16,7 @@ public:
     using CommRaT::LvglWidgetSink::on_enable;
     using CommRaT::LvglWidgetSink::process;
     using CommRaT::LvglWidgetSink::queue_interaction;
+    using CommRaT::LvglWidgetSink::queue_note_interaction;
 };
 
 } // namespace
@@ -44,7 +45,10 @@ int main() {
 
     commrat::ModuleConfig config{};
     config.name = "LvglWidgetSinkTest";
-    config.outputs = commrat::SimpleOutputConfig{.system_id = 51, .instance_id = 1};
+    config.outputs = commrat::MultiOutputConfig{.addresses = {
+        {.system_id = 51, .instance_id = 1},
+        {.system_id = 52, .instance_id = 1},
+    }};
     config.inputs = commrat::MultiInputConfig{
         .sources = {{
             .system_id = 50,
@@ -74,22 +78,47 @@ int main() {
         .value = 0.75,
     });
     CommRaT::Messages::ControlEventBlock controls{};
+    CommRaT::Messages::NoteEventBlock notes{};
     sink->process(
         commrat::Synced<CommRaT::Messages::WidgetUpdateBlock>{block, true},
-        controls);
+        controls,
+        notes);
     assert(controls.events.empty());
+    assert(notes.events.empty());
 
     sink->queue_interaction(
         "gain",
         CommRaT::Messages::CONTROL_UNIPOLAR,
         0.6,
         CommRaT::Messages::CONTROL_EVENT_GESTURE_UPDATE);
-    sink->process({}, controls);
+    sink->queue_note_interaction(42, 69, 0.8F, true);
+    sink->queue_note_interaction(42, 69, 0.0F, false);
+    sink->process({}, controls, notes);
     assert(controls.events.size() == 1);
     assert(controls.events[0].source_device_id == 5);
     assert(controls.events[0].source_endpoint_id == 7);
     assert(controls.events[0].origin_id == 7);
     assert(controls.events[0].value == 0.6);
+    assert(notes.events.size() == 2);
+    assert(notes.events[0].source_endpoint_id == 1);
+    assert(notes.events[0].note_id == 42);
+    assert(notes.events[0].type == CommRaT::Messages::NOTE_ON);
+    assert(notes.events[0].channel == 0);
+    assert(notes.events[0].key == 69);
+    assert(notes.events[0].value == 0.8F);
+    assert(notes.events[1].type == CommRaT::Messages::NOTE_OFF);
+    assert(notes.timestamp_ns == controls.timestamp_ns);
+    assert(notes.sequence_number == controls.sequence_number);
+
+    for (std::size_t index = 0;
+         index < CommRaT::Messages::NoteEventBlock::MAX_EVENTS + 1;
+         ++index) {
+        sink->queue_note_interaction(
+            static_cast<uint32_t>(index + 1), 60, 1.0F, true);
+    }
+    sink->process({}, controls, notes);
+    assert(notes.events.size() == CommRaT::Messages::NoteEventBlock::MAX_EVENTS);
+    assert((notes.flags & CommRaT::Messages::NOTE_EVENT_BLOCK_OVERFLOW) != 0);
 
     const auto deadline = std::chrono::steady_clock::now()
         + std::chrono::seconds{1};

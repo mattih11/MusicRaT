@@ -7,6 +7,8 @@
 
 namespace musicrat::backends {
 
+class LvglTouchInput;
+
 enum class LvglDisplayBackend : uint8_t {
     Headless = 0,
     Drm = 1,
@@ -29,6 +31,7 @@ struct LvglDisplayHandle {
     lv_indev_t* pointer{nullptr};
     int32_t width{0};
     int32_t height{0};
+    LvglTouchInput* touch_input{nullptr};
 };
 
 [[nodiscard]] bool lvgl_display_backend_available(

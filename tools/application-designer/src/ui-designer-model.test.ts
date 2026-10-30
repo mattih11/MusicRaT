@@ -77,6 +77,19 @@ describe('UI designer model', () => {
     expect(control.bindings).toEqual([])
   })
 
+  it('adds a keyboard without inventing a control endpoint', () => {
+    const result = addSurfaceWidget(
+      project(), 'display-main', uiComponentDefinition('keyboard')!)
+    const surface = result.control.surfaces.find((item) => item.id === 'display-main')!
+    expect(surface.widgets[0]).toMatchObject({
+      id: result.widgetId,
+      kind: 'keyboard',
+      layout: { width: 88, height: 58 },
+    })
+    expect(surface.widgets[0].endpoint_id).toBeUndefined()
+    expect(surface.endpoints).toEqual([])
+  })
+
   it('snaps and clamps widget geometry to its display', () => {
     expect(clampWidgetLayout({ x: 97, y: -2, width: 18, height: 24 }, 5)).toEqual({
       x: 80,

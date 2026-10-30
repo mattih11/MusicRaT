@@ -1,6 +1,7 @@
 import {
   actionsOf,
   compileApplication,
+  keyboardNoteRoutes,
   observablesOf,
   parametersOf,
   payloadType,
@@ -17,6 +18,7 @@ import {
   type MusicRaTControlProject,
   type ParameterDescriptor,
   type SurfaceWidget,
+  validateWorkspace,
 } from './model'
 import { compileDeckArtifacts } from './deck-compiler'
 
@@ -146,6 +148,7 @@ export interface CompiledParameterStateUiBinding {
   widget_id: string
   parameter_minimum: number
   parameter_maximum: number
+  value_kind?: number
 }
 
 export interface CompiledParameterStateUiAdapterModule {
@@ -302,7 +305,13 @@ export function compileControlPlan(
       (module) => module.id === binding.target.module_id)!
     const parameter = parametersOf(targetModule.descriptor).find(
       (item) => item.id === binding.target.parameter_id)!
-    const [sourceMinimum, sourceMaximum] = sourceRange(endpoint)
+    const choiceValues = parameter.kind === 'choice' ? parameter.choices.map((choice) => choice.value) : []
+    const targetMinimum = choiceValues.length ? Math.min(...choiceValues) : parameter.minimum
+    const targetMaximum = choiceValues.length ? Math.max(...choiceValues) : parameter.maximum
+    const widgetChoice = 'target' in owner && owner.target === 'lvgl'
+      && owner.widgets.some((widget) => widget.endpoint_id === endpoint.id && widget.kind === 'choice')
+    const [sourceMinimum, sourceMaximum] = widgetChoice && choiceValues.length
+      ? [targetMinimum, targetMaximum] : sourceRange(endpoint)
     const transform = binding.transform ?? {}
     const groupKey = `${owner.id}\u0000${targetModule.id}`
     let group = groups.get(groupKey)
@@ -327,8 +336,8 @@ export function compileControlPlan(
       pickup: pickupModes[binding.pickup ?? 'immediate'],
       source_minimum: sourceMinimum,
       source_maximum: sourceMaximum,
-      target_minimum: parameter.minimum,
-      target_maximum: parameter.maximum,
+      target_minimum: targetMinimum,
+      target_maximum: targetMaximum,
       scale: transform.scale ?? 1,
       offset: transform.offset ?? 0,
       dead_zone: transform.dead_zone ?? 0,
@@ -344,6 +353,16 @@ export function compileControlPlan(
       const destinationModuleId = 'adapter_module_id' in feedbackOwner
         ? feedbackOwner.adapter_module_id
         : undefined
+      if ('target' in feedbackOwner && feedbackOwner.target === 'lvgl') {
+        const widget = feedbackOwner.widgets.find((item) =>
+          item.endpoint_id === binding.feedback!.endpoint_id)
+        if (!widget || widget.parameter?.module_id !== binding.target.module_id
+            || widget.parameter.parameter_id !== binding.target.parameter_id
+            || widget.parameter_feedback === false) {
+          throw new Error(`Binding '${binding.id}' requires matching LVGL parameter feedback.`)
+        }
+        continue
+      }
       if (!destinationModuleId
         || !workspace.modules.some((module) => module.id === destinationModuleId)) {
         throw new Error(
@@ -475,7 +494,7 @@ export function compileControlPlan(
     .sort((left, right) => left.id.localeCompare(right.id))) {
     for (const widget of [...surface.widgets]
       .filter((item): item is SurfaceWidget & { parameter: NonNullable<SurfaceWidget['parameter']> } =>
-        item.parameter !== undefined)
+        item.parameter !== undefined && item.parameter_feedback !== false)
       .sort((left, right) => left.id.localeCompare(right.id))) {
       const targetModule = workspace.modules.find(
         (module) => module.id === widget.parameter.module_id)!
@@ -499,6 +518,7 @@ export function compileControlPlan(
         widget_id: widget.id,
         parameter_minimum: parameter.minimum,
         parameter_maximum: parameter.maximum,
+        ...(widget.kind === 'choice' ? { value_kind: 2 } : {}),
       })
     }
   }
@@ -536,6 +556,10 @@ const controlFeedbackPayload = 'CommRaT::Messages::ControlFeedbackBlock'
 const parameterEventPayload = 'CommRaT::Messages::ParameterEventBlock'
 const parameterStatePayload = 'CommRaT::Messages::ParameterStateBlock'
 const deckControlPayload = 'CommRaT::Messages::DeckControlEventBlock'
+function widgetsOnSurface(workspace: DesignerWorkspace, surfaceId: string) {
+  return workspace.source.musicrat_control?.surfaces.find(
+    (surface) => surface.id === surfaceId)?.widgets ?? []
+}
 
 function onlyPortIndex(
   workspace: DesignerWorkspace,
@@ -575,11 +599,20 @@ export function compileLaunchApplication(
     lvglBackend?: number
   } = {},
 ): ApplicationDocument {
-  const application = compileApplication(workspace)
   const plan = compileControlPlan(workspace, options)
+  const hasKeyboard = (workspace.source.musicrat_control?.surfaces ?? [])
+    .some((surface) => surface.target === 'lvgl'
+      && surface.widgets.some((widget) => widget.kind === 'keyboard'))
   if (plan.mappers.length === 0 && plan.action_mappers.length === 0
       && plan.observation_adapters.length === 0
-      && plan.parameter_state_adapters.length === 0) return application
+      && plan.parameter_state_adapters.length === 0
+      && !hasKeyboard) return compileApplication(workspace)
+
+  const validationIssues = validateWorkspace(workspace)
+  if (validationIssues.length > 0) {
+    throw new Error(validationIssues[0].message)
+  }
+  const application = compileApplication(workspace, { validate: false })
 
   for (const device of workspace.source.musicrat_control?.devices ?? []) {
     if (!device.adapter_module_id) continue
@@ -665,8 +698,11 @@ export function compileLaunchApplication(
       (adapter) => adapter.surface_id === display.surface_id)
     const hasParameterState = plan.parameter_state_adapters.some(
       (adapter) => adapter.surface_id === display.surface_id)
-    if (!hasControl && !hasObservations && !hasParameterState) continue
-    if (nextInstance > 255) {
+    const keyboards = widgetsOnSurface(workspace, display.surface_id)
+      .filter((widget) => widget.kind === 'keyboard')
+    if (!hasControl && !hasObservations && !hasParameterState
+        && keyboards.length === 0) continue
+    if (nextInstance > 254) {
       throw new Error('Generated LVGL control addresses exceed uint8 capacity.')
     }
     const sinkName = `LvglWidgetSink_${displayIndex + 1}`
@@ -692,7 +728,10 @@ export function compileLaunchApplication(
       name: sinkName,
       module_class: 'MusicRaTLvglWidgetSink',
       musicrat_generated: 'lvgl_widget_sink',
-      outputs: [{ system_id: 10, instance_id: nextInstance++ }],
+      outputs: [
+        { system_id: 10, instance_id: nextInstance++ },
+        { system_id: 10, instance_id: nextInstance++ },
+      ],
       inputs: [],
       period_ms: 10,
       params: {
@@ -708,9 +747,44 @@ export function compileLaunchApplication(
           ? workspace.appName || 'MusicRaT'
           : `${workspace.appName || 'MusicRaT'} - ${display.instance_id}`,
         device_id: deviceId,
+        ...(keyboards.length > 0
+          ? { note_source_endpoint_id: deviceId }
+          : {}),
         control_bindings: controlBindings,
       },
     })
+  }
+  for (const [displayIndex, display] of (deckArtifacts?.lvgl.displays ?? []).entries()) {
+    const routes = keyboardNoteRoutes(workspace.source.musicrat_control, workspace.modules)
+      .filter((route) => route.surface.id === display.surface_id)
+    if (routes.length === 0) continue
+    const sink = generated.find(
+      (module) => module.name === `LvglWidgetSink_${displayIndex + 1}`)
+    const noteAddress = sink?.outputs?.[1]
+    if (!noteAddress) {
+      throw new Error(`LVGL display '${display.surface_id}' has no note-event output.`)
+    }
+    for (const { widget: keyboard, target } of routes) {
+      const targetModuleId = target.module_id
+      const targetModule = application.modules.find(
+        (module) => module.name === targetModuleId)
+      if (!targetModule) {
+        throw new Error(
+          `Keyboard '${keyboard.id}' targets unknown module '${targetModuleId}'.`)
+      }
+      const targetDescriptor = workspace.modules.find((module) => module.id === targetModuleId)!.descriptor
+      const targetPortIndex = portsOf(targetDescriptor).find((port) => port.id === target.port_id)!.port_index
+      const targetRoutes = [...(targetModule.synced_inputs ?? [])]
+      if (targetRoutes[targetPortIndex]) {
+        throw new Error(
+          `Keyboard note input '${targetModuleId}' is already routed.`)
+      }
+      targetRoutes[targetPortIndex] = {
+        source_system_id: noteAddress.system_id,
+        source_instance_id: noteAddress.instance_id,
+      }
+      targetModule.synced_inputs = targetRoutes
+    }
   }
   for (const mapper of plan.mappers) {
     if (nextInstance > 255) throw new Error('Generated mapper addresses exceed uint8 capacity.')
@@ -958,7 +1032,11 @@ export function compileLaunchApplication(
       params: router.params,
     })
   }
-  application.modules = application.modules.flatMap((module) => [
+  // Start UI producers before mappers subscribe, not while their producers
+  // are still initializing their outputs.
+  application.modules = [
+    ...generated.filter((module) => module.musicrat_generated === 'lvgl_widget_sink'),
+    ...application.modules.flatMap((module) => [
     ...generated.filter((generatedModule) =>
       plan.mappers.some((entry) => entry.module_id === generatedModule.name
         && entry.target_module_id === module.name)
@@ -975,8 +1053,8 @@ export function compileLaunchApplication(
       plan.parameter_state_adapters.some((entry) =>
         entry.module_id === generatedModule.name
         && entry.source_module_id === module.name)),
-  ]).concat(generated.filter((module) =>
-    module.musicrat_generated === 'widget_update_merger'
-    || module.musicrat_generated === 'lvgl_widget_sink'))
+    ]),
+    ...generated.filter((module) => module.musicrat_generated === 'widget_update_merger'),
+  ]
   return application
 }

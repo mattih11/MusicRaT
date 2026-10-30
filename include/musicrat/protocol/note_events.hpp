@@ -16,6 +16,7 @@ inline constexpr NoteEventType NOTE_OFF = 1;
 inline constexpr NoteEventType NOTE_POLYPHONIC_PRESSURE = 2;
 inline constexpr NoteEventType NOTE_PITCH_EXPRESSION = 3;
 inline constexpr NoteEventType NOTE_TIMBRE_EXPRESSION = 4;
+inline constexpr NoteEventType NOTE_ALL_OFF = 5;
 
 enum NoteEventBlockFlag : uint16_t {
     NOTE_EVENT_BLOCK_OVERFLOW = 1U << 0U,

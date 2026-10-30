@@ -619,6 +619,405 @@ restored after each run; final checks confirmed its service active, PCM
 scripts, and raw copies were removed from H4. No installed binary,
 configuration, or image was changed.
 
+### Trace-Correlated H4 Wait Capture (2026-10-21)
+
+A temporary trace-capable EVL kernel was installed as revision 4 in the
+previously inactive A slot (trial image UUID
+`bfe1a3f9-013e-46d8-a1eb-6f7b63c12cb0`). The signed update bundle was verified
+before installation, and A was not confirmed. Runtime tracefs was mounted only
+for capture. Scheduler events were filtered to the ALSA worker thread and used
+the global `mono` trace clock.
+
+The current EVL/ALSA probe (SHA256
+`27f09e8a28f24b074e7c9ca5ee67f1253d422f2ccbab7f62ce24826aa565b196`) ran
+60,000 stereo 480-frame blocks at 48 kHz with a +100 ppm producer offset for
+599.930 seconds. The physical PCM reported RW_INTERLEAVED/S16_LE, 240-frame
+periods, a 960-frame buffer, and `start_threshold=960`. The probe retained 600
+producer samples and 4,189 worker events, including 124 `-EAGAIN` waits.
+There were three waits above the 20 ms diagnostic threshold:
+
+| Producer-relative wait start | ALSA wait | Queue before -> after | `sched_wakeup` -> worker run | Runnable delay | ALSA status |
+| --- | --- | --- | --- | --- | --- |
+| 44.325947 s | 31.816 ms | 1,356 -> 2,796 (+1,440) | 6 us | 0 ns | RUNNING; 568 available / 435 delay frames |
+| 44.441678 s | 28.494 ms | 2,044 -> 3,484 (+1,440) | 5 us | 0 ns | RUNNING; 416 available / 591 delay frames |
+| 320.720425 s | 49.637 ms | 1,963 -> 4,363 (+2,400) | 1 us | 0 ns | RUNNING; 472 available / 533 delay frames |
+
+For each event, the worker switched out in a sleeping state about 4 us after
+the measured wait start, was woken only after the long wait interval, and ran
+within 1-6 us of `sched_wakeup`. The trace and EVL monotonic timestamps agreed
+at these intervals. This directly rules out a long ordinary Linux run-queue
+delay as the explanation for these three waits and supports the worker
+remaining blocked in the ALSA wait until readiness was reported. It does not
+identify whether the pre-wakeup delay came from ALSA/plugin behavior, the
+driver/interrupt path, or device readiness; no IRQ trace was collected.
+
+The probe exited successfully with zero rejected blocks, underruns, missing
+frames, stream failures, dropped diagnostic events, scheduling-counter
+failures, or ALSA status failures. Queue high-water was 4,363 frames and the
+maximum correction reached 500 ppm. Tracefs recorded 120,876 worker
+`sched_switch` events and 60,438 each of `sched_waking` and `sched_wakeup`.
+Every CPU reported zero trace overruns and dropped events. The raw trace and
+probe JSON were checksum-verified and retained with the session evidence
+(SHA256 `e00a3d1a28b21020f98c2ef0e8393b8451d3695f56bfa0d83819e4d1dca8a3c7`
+and `4ff7c315d8b958f4982218ab0f0bd5b775cfef383764640349740547c3c7ed05`,
+respectively). This is timing and playback-health evidence, not a listening
+assessment or a reproduction of the historical underruns.
+
+After capture, trace events were disabled, tracefs unmounted, and the temporary
+probe and capture files removed from H4. Rebooting without confirming A
+triggered the expected fallback: A is now marked FAILED and confirmed B
+(revision 3, image UUID `536ee542-ef62-4224-82ea-6471bf74e3a9`) is running from
+`/dev/nvme0n1p5`. The EVL router is active, the PCM is closed, and no systemd
+units failed. No trace settings or probe binary remain on the H4.
+
+### HDA IRQ Correlation Capture (2026-10-23)
+
+Read-only inspection of confirmed B showed that it has no tracefs or
+`/sys/kernel/debug/tracing` event interface. Its HDA controller is IRQ 138.
+The same kernel source used for the A-slot trace image defines ALSA PCM
+`hwptr`/`xrun` tracepoints, HDA `azx_get_position`/`azx_pcm_trigger`
+tracepoints, and generic IRQ pipeline/handler events. On the trial image,
+the HDA and IRQ events were available, but `snd_pcm:*` events were absent:
+the PCM tracepoints require `CONFIG_SND_PCM_XRUN_DEBUG`, which depends on
+`CONFIG_SND_DEBUG` and was not enabled. Therefore this capture has no direct
+ALSA XRUN tracepoint.
+
+The same signed trace image was installed again in inactive A and left
+unconfirmed. The EVL/ALSA probe (SHA256
+`27f09e8a28f24b074e7c9ca5ee67f1253d422f2ccbab7f62ce24826aa565b196`) ran
+360,000 stereo 480-frame blocks at 48 kHz and +100 ppm for 3,599.630 seconds.
+The PCM was S16_LE, RW_INTERLEAVED, with a 240-frame period, a 960-frame
+buffer, and `start_threshold=960`. Trace events covered the ALSA worker,
+HDA controller position, and IRQ 138 pipeline and handler. The trace was
+streamed off-board; all four CPU buffers reported zero overruns and dropped
+events.
+
+The probe reported 3,600 producer samples and 3,593 worker events, with zero
+rejected blocks, underruns, missing frames, stream failures, dropped events,
+scheduling failures, or ALSA status failures. Queue high-water was 3,383 frames,
+end depth 2,324 frames, and maximum correction 365 ppm. It retained one wait
+above the 20 ms threshold, at producer-relative time 10.480904 seconds:
+`snd_pcm_wait` lasted 49.753 ms after `snd_pcm_writei` returned `-EAGAIN`.
+Queue depth rose from 983 to 3,383 frames (+2,400); the wait returned ready,
+and subsequent ALSA status was `RUNNING` with 472 available and 532 delay
+frames. Scheduling counters showed zero runnable delay and 155,064 ns of
+runtime. The worker switched to sleep about 5 us after wait start, was woken
+at 49.733 ms, and ran at 49.736 ms.
+
+The HDA IRQ trace places two long IRQ 138 intervals inside that wait: pipeline
+entries were 19.875 ms and 20.005 ms apart, versus the usual 5 ms. In trace
+event order, the corresponding HDA handler entries followed those first two
+pipeline entries by 15.515 ms and 17.699 ms; the next two were serviced
+immediately. The complete capture had 719,877 pipeline entries and handler
+entries; `/proc/interrupts` increased by 719,901. Only two pipeline gaps
+exceeded 10 ms, and the maximum was 20.005 ms. This correlates the observed
+queue buildup with a delay between IRQ pipeline processing and in-band HDA
+handler service, rather than ordinary Linux run-queue delay for the audio
+worker. It does not establish why the in-band service was delayed, nor prove
+that it explains the historical underruns; this run itself had none.
+
+Interpret the tracepoints as distinct stages: `irq_pipeline_entry`/`exit`
+bracket the initial IRQ-pipeline pass, while `irq_handler_entry` marks the
+ordinary in-band handler. That handler can be deferred until in-band
+synchronization, so the pipeline-to-handler timestamp gap is not, by itself,
+evidence that the physical IRQ arrived late.
+
+The `/proc/interrupts` snapshots and trace stream do not have identical start
+and end boundaries, so their 24-event count difference is not a trace-loss
+measurement.
+
+The trace and probe JSON were retained with the session evidence (SHA256
+`8938213de86831da14368090bc90dce1cc81ec8c3688e471e94186b23b8201c0` and
+`2395971e77795d047d09ae002d74e10cf4fd0203973fb4787d2409b46c04ad44`,
+respectively). Trace events were disabled and temporary H4 files removed.
+Rebooting without confirming A returned the board to confirmed B
+(`/dev/nvme0n1p5`, image UUID `536ee542-ef62-4224-82ea-6471bf74e3a9`);
+A is marked FAILED. The EVL router is active, the PCM is closed, and no
+systemd units failed.
+
+### EVL Context and IRQ-Off Follow-up (2026-10-23)
+
+A second one-hour +100 ppm run used the same 48 kHz stereo, 240-frame
+S16_LE/960-frame-buffer setup and an HDA/IRQ trace limited to CPU0. It completed
+360,000 blocks in 3,599.630 seconds with no rejected blocks, underruns, missing
+frames, or stream failures. It had one 49.704 ms ALSA wait at producer-relative
+672.786 seconds; queue depth rose from 1,930 to 4,330 frames. The worker had
+zero runnable delay. Its CPU0 trace had 719,819 of each IRQ 138 pipeline and
+handler event, with no trace overruns or dropped events. Two pipeline gaps
+over 10 ms occurred during the wait (20.063 ms and 20.469 ms); the corresponding
+in-band HDA handler entries followed their pipeline entries by 16.128 ms and
+17.714 ms. The capture still did not reveal why synchronization was delayed.
+Its CPU0 mask excluded the EVL producer.
+
+A corrected one-hour capture streamed HDA and EVL events across all CPUs. It
+completed 360,000 blocks in 3,599.630 seconds with no rejected blocks,
+underruns, missing frames, or stream failures. It had one 45.729 ms ALSA wait
+at producer-relative 835.551 seconds; queue depth rose from 1,923 to 4,323
+frames and runnable delay was zero. Two IRQ 138 pipeline gaps overlapped the
+wait: their intervals were 19.971 ms and 20.002 ms. The corresponding in-band
+HDA handler entries followed their pipeline entries by 19.607 ms and 16.059 ms;
+the second handler ran about 20 us before the ALSA wait returned.
+There were 719,913 pipeline entries and handler entries, and each CPU reported
+zero trace overruns and dropped events. `/proc/interrupts` increased by
+719,925; its snapshots have different boundaries from the trace and the
+12-event difference is not a trace-loss measurement.
+
+The same all-CPU trace placed the `corerat-unnamed` EVL producer on CPU2 for
+359,995 short context runs, lasting 46-100 us (median 88 us). A separate
+15-second all-CPU smoke trace had placed it on CPU3, so its CPU varied between
+runs. During the delayed HDA handler intervals in the one-hour trace, the
+producer continued its short periodic runs on CPU2 while IRQ 138 was handled
+on CPU0. The capture therefore does not support direct same-CPU OOB occupancy
+as the cause; temporal overlap across CPUs does not establish a cross-core
+cause either.
+
+An `irqsoff` smoke trace recorded a 7.586 ms maximum from `default_idle_call`
+to `sync_current_irq_stage`. That span includes CPU idle and IRQ-stage
+synchronization; it does not demonstrate a 7.586 ms locked critical section.
+A later one-hour run with a 5 ms IRQ-off threshold emitted no maximum-latency
+snapshot, and its probe had no wait above 20 ms. However, the CPU0 trace ring
+reported 213,417,253 overruns while HDA events were enabled without a streaming
+reader. That capture is not treated as a lossless event trace or as a
+conclusive explanation/exclusion of the earlier IRQ-to-handler gaps.
+
+The one-hour HDA/IRQ stream and probe JSON were retained with the session
+evidence (SHA256 `a07773a40bc92fc8a8073eb7d1acb9e0f911be8f684d99c76f765d4f4509cb68`
+and `ff45178b223ff30e80e529c0a46b455812b2e69e0a4c57f2b2bf8b890007ed31`).
+The corrected all-CPU HDA/EVL trace and probe JSON have SHA256
+`3cd5e71c0ba4558a82f97bd1edb73e54f56286c4dfc06d2d92dbad171d4c7580` and
+`a5e9959c8463728206c129f2dc0b3ca24884c878dfc383dae2dd69d3a97bb5a3`.
+After diagnostics, trace settings and filters were restored, temporary files
+and the probe were removed, and the unconfirmed A slot was allowed to fail
+back to confirmed B. The board is healthy on B: the EVL router is active, the
+PCM is closed, and no systemd units failed.
+
+### Filtered In-Band Re-enable Follow-up (2026-10-24)
+
+The trace kernel was installed to unconfirmed A again. A one-hour +100 ppm
+probe ran 360,000 stereo 480-frame blocks at 48 kHz for 3,599.630 seconds.
+Unlike the earlier clean repeats, it reported 34 rejected blocks, 8
+underruns/1,920 missing frames, and no stream failures; the probe exited with
+status 1. Queue high-water reached 16,383 of 16,384 frames and the correction
+hit its +500 ppm limit; the final queue held 2,621 frames and the current
+correction was +55 ppm. Maximum producer lateness was 29,317 ns. The run
+therefore does not qualify the physical output path and leaves the
+clock-stability gate open.
+
+An all-CPU HDA/EVL trace with CPU0 `sched_switch` events filtered to
+transitions involving `kauditd` ran alongside the latter part of the probe.
+A filtered kprobe on `__inband_irq_enable` recorded one useful sequence at
+trace time 2,120.762288 s: `kauditd` re-enabled in-band IRQs on CPU0, and the
+ordinary HDA IRQ 138 handler entered 4 microseconds later. The surrounding
+re-enable burst included `rcu_do_batch`, `put_pid`, `security_task_free`,
+`__put_task_struct`, and `rcu_core` caller symbols. This is consistent with a
+pending in-band HDA IRQ being dispatched as the stage was re-enabled during
+RCU callback processing. It does not show what held the stage stalled, prove
+that RCU caused a long gap, or tie this event to an ALSA underrun. The kprobe
+profile counted 41,418,659 hits, despite its event-record filter; that
+high-rate instrumentation may itself have perturbed the workload.
+
+All four per-CPU trace buffers reported zero overruns and dropped events.
+However, the probe-side backend event recorder retained only 11,794 events
+and reported 16,196 dropped events, with one ALSA status failure. Its retained
+timestamps ended at 1,354.425 s, before the streamed trace began at
+1,944.852 s. Thus the trace contains no matching per-wait diagnostics for the
+later part of the probe.
+The retained window included 12 waits longer than 20 ms; its longest was
+47.799 ms, and one 29.764 ms wait had 20.509 ms of runnable delay. These waits
+all precede the streamed trace.
+
+The no-kprobe capture below addresses the recorder overflow by increasing its
+preallocated capacity, and repeats the run without high-rate kprobe
+instrumentation. It still does not explain the XRUNs or establish the
+in-band-stage stall's root cause.
+
+The trace and probe JSON were retained with the session evidence (SHA256
+`ac79692519650682be375bbe3ab6ff3daec3194c8eed9641d42b462e1b8c8a36` and
+`fe44d6915854be9a90e2d24f464068e3cd0cd646d193ea7351f6767ba4b853e6`,
+respectively). Tracing was stopped, its kprobe removed, and named temporary
+files cleaned from H4. Rebooting without confirming A returned the board to
+confirmed B (root `/dev/nvme0n1p5`, image UUID
+`536ee542-ef62-4224-82ea-6471bf74e3a9`). The EVL router is active, the PCM is
+closed, there are no failed systemd units, and no probe process or temporary
+capture files remain on H4.
+
+### No-Kprobe Correlated H4 Capture (2026-10-24)
+
+To separate the previous high-rate kprobe's observer effect from the recurring
+waits, the same trace kernel was installed to unconfirmed A and the probe was
+run again without `--wait-scheduling` or any kprobe. The probe used the
+expanded preallocated diagnostic buffer (36,370 events for this one-hour run).
+It completed 360,000 stereo 480-frame blocks at 48 kHz and +100 ppm in
+3,599.630 seconds. The result was 0 rejected blocks, 2 underruns/480 missing
+frames, and 0 stream failures. Queue high-water was 9,831 of 16,384 frames,
+end depth was 3,582 frames, maximum correction reached +500 ppm, and maximum
+producer lateness was 27,558 ns. The probe returned status 1 because of the
+underruns. Its diagnostic recorder retained 31,908 events with no dropped
+events and one ALSA status-query failure.
+
+The simultaneous mono-clock trace streamed HDA IRQ 138 pipeline and handler
+events, probe-worker wakeup events, CPU0 scheduler transitions involving the
+worker or `kauditd`, and EVL context switches for the probe producer. All four
+trace buffers reported zero overruns and dropped events. There were 719,797
+entries and exits for both the IRQ-pipeline and ordinary IRQ-handler events.
+The trace contained 33 pipeline-entry intervals longer than 10 ms (maximum
+47.604 ms) and 30 ordered pipeline-to-handler intervals longer than 10 ms
+(maximum 31.610 ms). Of the 27 ALSA waits longer than 20 ms, 26 overlapped at
+least one such pipeline gap. This repeats the timing correlation without the
+kprobe, but does not by itself prove whether physical IRQ delivery, in-band
+stage synchronization, or another HDA/ALSA readiness condition caused each
+gap.
+
+The first XRUN was recorded at producer-relative 1,265.356 s as an ALSA
+`-EPIPE` write with 3,034 frames queued. About 5 ms later, a CPU0 HDA pipeline
+entry was followed by its in-band handler 24.406 ms later. `kauditd` ran on
+CPU0 across that handler interval for 29.325 ms, switching out about 67 us
+after the handler entered. This is a close temporal association, not proof
+that the IRQ delay caused that XRUN. The second `-EPIPE`, at 1,556.538 s,
+followed a 31.515 ms wait that itself returned `-EPIPE`; the trace did not
+place a greater-than-10-ms HDA pipeline gap in that wait interval. The two
+XRUNs may therefore not share the same immediate trigger.
+
+The scheduler-switch filter included the ALSA worker only on CPU0, while its
+wake events showed it being directed to CPUs 0-3. The all-CPU follow-up below
+addresses that coverage gap.
+
+The trace and probe JSON are retained with the session evidence (SHA256
+`66ac89c39ed89d85d8678c7276eb9cd5223d5acd1cfe1001aebd26cc00b29eee` and
+`0ee112de59ea354c1f2e8e1875be68c62819d61807e9e42641ea8db4f4b72792`,
+respectively). Tracing was stopped, all event filters and clock settings were
+restored, the extra tracefs mount and named temporary H4 files were removed,
+and A was not confirmed. The H4 returned to confirmed B (root
+`/dev/nvme0n1p5`, image UUID `536ee542-ef62-4224-82ea-6471bf74e3a9`); its EVL
+router is active, PCM is closed, and no systemd units failed.
+
+### All-CPU Worker Scheduler Follow-up (2026-10-24)
+
+The same trace kernel was installed to unconfirmed A for a one-hour +100 ppm
+probe with kprobes and `--wait-scheduling` disabled. The scheduler-switch
+filter captured the ALSA worker on every CPU while retaining `kauditd`
+switches only on CPU0. The EVL producer's context switches and HDA IRQ 138
+pipeline/handler events were captured on the same mono clock. The probe
+completed 360,000 stereo 480-frame blocks in 3,599.630 seconds with 0 rejected
+blocks, underruns, missing frames, stream failures, dropped diagnostic events,
+or status/scheduling failures. Queue high-water was 6,350 of 16,384 frames,
+end depth was 2,828 frames, correction peaked at +500 ppm, and maximum
+producer lateness was 29,192 ns. It exited successfully.
+
+The trace began 21.281 seconds after producer start and continued to the end
+of the run. It contained 715,589 entries/exits for both the IRQ-pipeline and
+ordinary HDA-handler events, with no overruns or drops on any CPU. There were
+21 pipeline-entry intervals longer than 10 ms (maximum 30.446 ms) and 18
+pipeline-to-handler intervals longer than 10 ms (maximum 29.975 ms). All 16
+ALSA waits longer than 20 ms overlapped at least one long pipeline interval.
+This again correlates slow ALSA waits with delayed HDA pipeline/handler
+service; it does not identify the physical IRQ arrival time or prove why
+in-band handling was deferred.
+
+Unlike the previous CPU0-only scheduler trace, this run captured 360,367
+worker wakeups and subsequent switches back to the worker on CPUs 0-3. The
+wakeup-to-run median was 2-11 us and the per-CPU 99th percentile was 3-20 us.
+The largest observed delays were 624 us on CPU0, 62 us on CPU1, 43 us on
+CPU2, and 1.570 ms on CPU3. Thus ordinary Linux wake-to-run scheduling did
+not account for the 25-56 ms ALSA waits in this run.
+
+The scheduler trace also found that all 18 long pipeline-to-handler intervals
+overlapped `kauditd` execution on CPU0; 23 of its 24 observed CPU0 execution
+slices exceeded 10 ms. This strengthens the temporal association previously
+seen in the filtered `__inband_irq_enable` kprobe capture, but it is still not
+causal evidence by itself. The successful one-hour probe had no underruns,
+while the preceding no-kprobe run had two; the intermittent XRUN remained
+unexplained. The filtered preemptirq follow-up below was selected to capture
+in-band IRQ-state transitions alongside the probe and HDA events.
+
+The trace and probe JSON are retained with the session evidence (SHA256
+`19c0f5ad4f97661a1c4eddc42b3591e78954657fdb053f0bf13328ec577c88a0` and
+`9b706f884522142f58f3b9d87fad6d287fd0ab3916b72be2d1a438c252efcf4e`,
+respectively). Tracing was stopped, event filters and settings were restored,
+task-specific files were removed from H4, and A was not confirmed. The H4
+returned to confirmed B (root `/dev/nvme0n1p5`, image UUID
+`536ee542-ef62-4224-82ea-6471bf74e3a9`); the EVL router is active, PCM is
+closed, and no systemd units failed.
+
+### Filtered Preemptirq and Console Correlation
+
+A follow-up one-hour +100 ppm run used a 36,370-event preallocated probe
+recorder and streamed CPU0 HDA IRQ 138 pipeline/handler events plus filtered
+`preemptirq:irq_disable` and `irq_enable` events. The trace reader was pinned
+to CPU1. It read 2,881,086 events with zero trace overruns or drops; the probe
+retained 25,633 events with zero recorder drops. The probe completed 360,000
+stereo 480-frame blocks at 48 kHz in 3,599.630 seconds, with 0 rejected
+blocks, 2 underruns/480 missing frames, 0 stream failures, and 2 ALSA status
+failures. The maximum producer lateness was 22.317 us, and queue high-water
+was 9,609 frames. The run therefore does not qualify the output path.
+
+The filtered trace contained 50 paired IRQ-off spans attributed to `kauditd`
+in `console_flush_all`; each pair had matching `console_flush_all` callsites.
+The two probe waits that returned `-EPIPE` both aligned with these spans and
+HDA handler deferral:
+
+- At producer-relative 463.896746 s, the ALSA wait lasted 22.364 ms. A
+  `kauditd` span began at 463.896546 s and lasted 22.519 ms. HDA IRQ 138
+  entered the pipeline at 463.900539 s; its in-band handler followed 18.532 ms
+  later, about 6 us after the IRQ-off span ended.
+- At producer-relative 2015.716406 s, the ALSA wait lasted 41.255 ms. A
+  `kauditd` span began at 2015.725581 s and lasted 32.038 ms. HDA IRQ 138
+  entered the pipeline at 2015.725717 s; its in-band handler followed
+  31.909 ms later, about 7 us after the span ended.
+
+All 19 ALSA waits longer than 20 ms overlapped at least one paired
+`kauditd` console-flush span and a long HDA pipeline/handler interval. Pairing
+was restricted to spans whose disable and enable events were both observed
+under `kauditd` with matching callsites. Because the event filter omitted
+transitions attributed to other tasks, events were not paired across task
+switches.
+
+Source review gives this correlation a plausible mechanism. The Xenomai IRQ
+pipeline reports in-band stage stall transitions through the hard-IRQ tracing
+hooks; this does not establish that the physical interrupt controller masked
+the HDA line. In the captured legacy printk path,
+`console_emit_next_record()` saves IRQ state across the console driver's
+`write()` call. The 8250 serial-console writer holds an IRQ-saving UART lock
+while sending and waiting for the transmitter to empty. The trial's active
+consoles were `ttyS0 tty0`, with `ttyS0` configured at 115200 baud and console
+log level 7. The audit source also shows `kauditd` can fall back to `pr_notice`
+when audit records cannot be delivered to userspace; no userspace `auditd`
+process was running during this trial. This is a strong candidate explanation
+for the long in-band stalls and both observed XRUNs, but the trace did not
+capture the exact printk call or test an intervention. It does not establish
+that the operator's audible oscillator clicks have the same cause.
+
+After collection, trace settings were restored and A was not confirmed. The
+H4 was rebooted to confirmed B (`/dev/nvme0n1p5`); the EVL router is active,
+all ALSA PCM substreams are closed, no probe process remains, and no systemd
+units failed. The trace and probe JSON are retained in session storage under
+`h4-hda-trace-plus100-2026-10-23`.
+
+### Console-Threshold Causality Trial (Interrupted 2026-10-25)
+
+To test whether NOTICE/WARNING console output was involved, the verified
+trace-kernel image was installed to unconfirmed A (revision 4); confirmed B
+(revision 3) was left untouched. A 300-block +100 ppm probe smoke test passed
+with no underruns or dropped diagnostic events. The one-hour +100 ppm capture
+then started with printk console level reduced from 7 to 3. Kernel log-buffer
+and audit settings were unchanged. CPU0 HDA IRQ 138 and filtered
+`kauditd` preemptirq events were streamed to the host, with the trace reader
+pinned to CPU1.
+
+This comparison is **incomplete**. The attached SSH/capture session was
+interrupted before the one-hour probe finished. The retained gzip trace is
+truncated and fails integrity checking; it contains only a partial timeline.
+The probe JSON was written under `/run` on A and was lost when the unconfirmed
+trial slot failed back to B. No final underrun, queue, or trace-loss totals
+survived, so this attempt cannot be compared with the normal-console run and
+does not test or refute the console-output hypothesis.
+
+After fallback, confirmed B was verified booted with the default console level
+7, EVL router active, PCM closed, and no failed systemd units. The interactive
+gain/pan demo was subsequently started on B; its service is active and its
+PCM reports `RUNNING`. The causal comparison and audible listening check are
+deferred; no further H4 changes are part of the current DSP/module work.
+
 ## Listening Check (2026-10-19)
 
 The operator approved three 30-second probe segments: nominal cadence, +100 ppm,
@@ -760,3 +1159,58 @@ wake-up lateness. It does not measure hardware latency, physical clock offset,
 or OOB residency. Its exit status is nonzero for rejected blocks, underruns,
 stream failures, invalid configuration, impossible queue metrics, or failed
 EVL producer attachment.
+
+## Live Three-Oscillator H4 Startup (2026-10-27)
+
+Started the keyboard and 23-control ThreeOscillator project as the transient
+`musicrat-three-oscillator-live.service`, using development binaries from the
+dirty MusicRaT `c42db4f` worktree cross-built against the RaTOS SDK. Binaries
+are staged under `/tmp/musicrat-three-oscillator-live`; the configuration and
+manifest are under `/var/tmp/musicrat-three-oscillator-live`. Installed binaries,
+the image, and the existing EVL router service were not changed.
+
+The display uses the 1024x600 framebuffer and the USB touchscreen event device.
+The SDK lacks DRM development headers, so this run uses framebuffer rather than
+DRM. Service hooks switch the console to graphics mode and restore text mode
+on stop. A framebuffer capture verified the keyboard and controls were rendered.
+The LVGL C-library allocator fix is included.
+
+ALSA uses `plughw:0,0`; the actual PCM reports stereo S16_LE at 48 kHz,
+240-frame periods and a 960-frame buffer. All five modules remained running at
+the post-start check and PCM state was `RUNNING`. This is a startup/display
+smoke check only: touch-to-note behavior, audible output, sustained operation,
+and dropout counters were not qualified in this run. The target clock reported
+April 13, so its journal timestamps do not match this host-side test date.
+The transient service is not enabled for reboot.
+
+### Multitouch Follow-Up
+
+The operator reported that only one piano key could be held. The controller's
+HID descriptor contains multiple finger records, but the running image bound
+USB `1a86:e5e3` to `hid-generic`, exposing only single-pointer axes. The installed
+kernel had no available `hid_multitouch` module. RaTOS now requests
+`CONFIG_HID_MULTITOUCH=m` in the H4 kernel fragment for subsequent image builds.
+
+With explicit approval, a temporary `hid-multitouch.ko` was loaded without a
+reboot or installed-image changes. The retained kernel build ID matched the
+running kernel; the module was built from exact source
+`45dc6e6c8b183e31bb0862bdab37253b8fa0e54d` using the original headers/config,
+with all 44 imported symbol CRCs verified. Module SHA256:
+`a09d6fcd3e1897e809c90bc7eca183c9b9ecd8c04b9e89bd0ab0b67d6134a47c`.
+Loading it automatically rebound the controller to `hid-multitouch`; an
+additional explicit generic-driver unbind was unnecessary and returned
+`No such device`. The kernel reports an out-of-tree-module taint for this
+development build.
+
+The updated LVGL backend detected six independent touch contacts after the
+demo was restarted. All five modules remained active and ALSA PCM was
+`RUNNING`. Four focused native tests and the same four SDK-built tests under
+EVL QEMU passed, including three simultaneous keys, independent releases,
+two fingers holding one key, tracking-ID reuse, coordinate scaling, event-loss
+cancellation, and cleanup. The disposable QEMU guest was terminated after
+its poweroff stalled; the tests had already completed successfully.
+
+Actual multi-finger playing and audible chord output remain operator checks,
+not inferred from the capability query or synthetic tests. The loaded driver
+and staged UI are temporary; a reboot returns to the installed image until a
+new image includes the driver and updated application.

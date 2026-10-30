@@ -274,6 +274,11 @@
 .ui-widget-glyph.glyph-button { border-radius: 4px; background: #d29a55; }
 .ui-widget-glyph.glyph-toggle { width: 28px; height: 14px; border-radius: 8px; }
 .ui-widget-glyph.glyph-choice { width: 30px; height: 14px; }
+.ui-widget-glyph.glyph-keyboard {
+  width: 32px;
+  height: 18px;
+  background: repeating-linear-gradient(90deg, #f1f4ec 0 12%, #52696b 12% 14%);
+}
 .ui-widget-glyph.glyph-meter { width: 8px; height: 30px; background: #4a9b7c; }
 .ui-widget-glyph.glyph-text { width: 30px; height: 12px; background: #183235; }
 
@@ -623,12 +628,42 @@ button { border: 0; cursor: pointer; }
 .audio-dot { background: var(--audio); } .note-dot { background: var(--note); } .parameter-dot { background: var(--parameter); }
 
 .canvas { position: relative; min-width: 0; min-height: 0; width: 100%; height: calc(100vh - 98px); background-color: #edf0ec; }
-.canvas-view-switcher { position: absolute; z-index: 4; top: 12px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border: 1px solid var(--line); background: rgba(249, 250, 247, .94); box-shadow: 0 5px 16px rgba(30, 47, 43, .08); }
+.canvas-view-switcher { position: absolute; z-index: 4; top: 12px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border: 1px solid var(--line); background: rgba(249, 250, 247, .94); box-shadow: 0 5px 16px rgba(30, 47, 43, .08); }
 .canvas-view-switcher button { min-width: 104px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .canvas-view-switcher button[aria-selected='true'] { background: var(--forest); color: white; }
 .advanced-ports-toggle { position: absolute; z-index: 4; top: 14px; right: 14px; min-height: 32px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: rgba(249, 250, 247, .94); color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .advanced-ports-toggle[aria-pressed='true'] { border-color: var(--forest); background: var(--forest); color: white; }
 .binding-canvas { width: 100%; height: 100%; }
+.unified-graph { width: 100%; height: 100%; }
+.unified-node { width: 300px; border: 1px solid #9aaea5; background: #fbfcf9; box-shadow: 0 6px 18px #1e2f2b18; }
+.unified-node.is-selected { outline: 2px solid var(--accent); }
+.unified-node header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #e6eee8; border-bottom: 1px solid var(--line); }
+.unified-node header div { display: grid; gap: 3px; min-width: 0; }
+.unified-node header strong { font-size: 13px; overflow-wrap: anywhere; }
+.unified-node header small { font-size: 9px; text-transform: uppercase; color: var(--muted); }
+.unified-node header span { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
+.graph-ui { border-color: #7e9cbe; background: #f5f9ff; }
+.graph-ui header { background: #dce8f7; }
+.graph-hardware { border-color: #ba965e; background: #fffaf1; }
+.graph-hardware header { background: #f3e4ca; }
+.graph-implementation { border-color: #a89caf; background: #f7f4fa; border-style: dashed; }
+.graph-implementation header { background: #e9e2ef; }
+.graph-ports { display: grid; grid-template-columns: 1fr 1fr; padding: 8px 0; min-height: 36px; }
+.graph-port { display: grid; position: relative; padding: 6px 12px; min-height: 34px; font-size: 10px; overflow-wrap: anywhere; }
+.graph-ports > div:last-child { text-align: right; }
+.graph-port small { font-size: 8px; color: var(--muted); }
+.unified-node footer { padding: 8px 12px; font-size: 9px; color: var(--muted); border-top: 1px solid var(--line); }
+.port-control .react-flow__handle { background: #a66f25; }
+.port-feedback .react-flow__handle { background: #4e729f; }
+.edge-control .react-flow__edge-path { stroke: #a66f25; }
+.edge-parameter .react-flow__edge-path { stroke: var(--parameter); }
+.edge-audio .react-flow__edge-path { stroke: var(--audio); }
+.edge-feedback .react-flow__edge-path { stroke: #4e729f; stroke-dasharray: 6 3; }
+.generated-edge .react-flow__edge-path { stroke: #8a8294; stroke-dasharray: 3 4; }
+.ui-dot, .feedback-dot { background: #4e729f; }
+.hardware-dot { background: #b18138; }
+.graph-warning { position: absolute; bottom: 12px; left: 56px; right: 220px; padding: 10px; font-size: 11px; color: #724b17; background: #fff5df; border: 1px solid #ba965e; z-index: 4; }
+.generated-params { max-height: 400px; overflow: auto; font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .react-flow__controls { border: 1px solid var(--line); box-shadow: none; }
 .react-flow__controls-button { background: white; border-bottom-color: var(--line); }
 .react-flow__minimap { border: 1px solid var(--line); background: #f7f8f5; }

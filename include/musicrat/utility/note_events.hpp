@@ -43,6 +43,7 @@ inline NoteEventValidationError validate_note_event_block(
         case CommRaT::Messages::NOTE_OFF:
         case CommRaT::Messages::NOTE_POLYPHONIC_PRESSURE:
         case CommRaT::Messages::NOTE_TIMBRE_EXPRESSION:
+        case CommRaT::Messages::NOTE_ALL_OFF:
             if (event.value < 0.0F || event.value > 1.0F) {
                 return NoteEventValidationError::InvalidValue;
             }

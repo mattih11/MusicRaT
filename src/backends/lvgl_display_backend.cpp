@@ -1,5 +1,7 @@
 #include <musicrat/backends/lvgl_display_backend.hpp>
+#include <musicrat/backends/lvgl_touch_input.hpp>
 
+#include <cstdio>
 #include <string>
 
 namespace musicrat::backends {
@@ -115,21 +117,29 @@ LvglDisplayHandle create_lvgl_display(
     if (display == nullptr) return {};
 
     lv_indev_t* pointer = nullptr;
+    LvglTouchInput* touch_input = nullptr;
     if (!config.input_device_path.empty()) {
         const std::string input_device_path{config.input_device_path};
-        pointer = lv_evdev_create(
-            LV_INDEV_TYPE_POINTER, input_device_path.c_str());
-        if (pointer == nullptr) {
+        bool multitouch = false;
+        touch_input = LvglTouchInput::open(
+            input_device_path.c_str(), display, multitouch);
+        if (!multitouch) {
+            std::fprintf(stderr, "MusicRaT touch input: no contact slots; using single pointer\n");
+            pointer = lv_evdev_create(
+                LV_INDEV_TYPE_POINTER, input_device_path.c_str());
+        }
+        if (touch_input == nullptr && pointer == nullptr) {
             lv_display_delete(display);
             return {};
         }
-        lv_indev_set_display(pointer, display);
+        if (pointer != nullptr) lv_indev_set_display(pointer, display);
     }
     return {
         .display = display,
         .pointer = pointer,
         .width = lv_display_get_horizontal_resolution(display),
         .height = lv_display_get_vertical_resolution(display),
+        .touch_input = touch_input,
     };
 }
 
@@ -137,6 +147,7 @@ void destroy_lvgl_display(
     LvglDisplayHandle& handle,
     LvglDisplayBackend backend) noexcept {
     if (handle.display == nullptr) return;
+    delete handle.touch_input;
     lv_evdev_delete(handle.pointer);
     lv_display_delete(handle.display);
     handle = {};

@@ -81,6 +81,7 @@ struct CompiledParameterStateUiBinding {
     sertial::fixed_string<64> widget_id{};
     double parameter_minimum{0.0};
     double parameter_maximum{1.0};
+    CommRaT::Messages::WidgetValueKind value_kind{CommRaT::Messages::WIDGET_VALUE_CONTINUOUS};
 };
 
 struct ParameterStateUiAdapter {

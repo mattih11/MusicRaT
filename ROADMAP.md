@@ -200,14 +200,25 @@ remain deferred until their runtime ownership contracts are defined.
     - [x] Collect one-hour +/-100 ppm physical worker events; identify a 29 ms ALSA wait with three-block queue buildup, without underruns or correction saturation
     - [x] Add separately gated Linux in-band scheduling-counter snapshots around ALSA waits; validate parsing and native/EVL runtime compatibility
     - [x] Capture per-wait scheduler accounting during one-hour +/-100 ppm runs; three +100 ppm waits of 25-29 ms had zero runnable delay and each added three producer blocks to the queue
-    - [ ] Distinguish ALSA/plugin wait readiness from driver/device progress and explain earlier underruns before closing the stability gate
+    - [x] Trace three slow H4 ALSA waits on a temporary A/B trial kernel; worker wake-to-run was 1-6 us with no trace loss
+    - [x] Correlate a one-hour H4 capture's 49.75 ms ALSA wait with two ~20 ms HDA IRQ pipeline gaps and 15-18 ms pipeline-to-in-band-handler gaps; no underruns reproduced
+    - [x] Capture an all-CPU HDA/EVL timeline; the 45.7 ms ALSA wait overlapped two ~20 ms CPU0 pipeline gaps while the brief EVL producer ran on CPU2
+    - [x] Capture filtered CPU0 scheduler/HDA events and `__inband_irq_enable` callers; one handler followed re-enable during `kauditd` RCU callback processing, but the cause remains unproven
+    - [x] Repeat the one-hour +100 ppm H4 capture without kprobes and with a full-capacity probe event buffer; 2 underruns remained, 26/27 slow waits overlapped long HDA pipeline gaps
+    - [x] Capture ALSA worker scheduler switches on all CPUs with `kauditd` restricted to CPU0; wake-to-run was at most 1.57 ms and all 18 long pipeline-to-handler intervals overlapped `kauditd`
+    - [x] Capture filtered CPU0 preemptirq transitions with HDA events and the probe; all 19 waits over 20 ms overlapped paired `kauditd` console-flush spans and long HDA intervals, including both `-EPIPE` waits
+    - [x] Inspect the printk, audit, and 8250 console paths; the legacy console write holds IRQ state across synchronous serial output, making audit fallback printing a leading stall mechanism
+    - [D] Defer the NOTICE/WARNING console-threshold causality test and listening check; the 2026-10-25 attempt was interrupted, its trace is truncated, and its probe result was lost on A-to-B fallback
 - [ ] Complete the H4 display feedback loop
   - [x] Add live peak/RMS/clipping meters to the gain/pan screen
   - [x] Compile authoritative gain and pan parameter state into LVGL widget updates, merged with meter observations and covered by a second-source compiler fixture
+  - [x] Add an LVGL on-screen keyboard with octave selection, note labels, touch note-on/off, and semantic note-event routing; validate the desktop renderer before H4
   - [D] Prove LVGL and RatGUI against the same project fixture with live observations after RatGUI runtime ownership is defined
-- [ ] Extend the processing channel after the stabilization gates
+- [~] Expand the launchable synthesis and processing module catalog; H4 stability qualification remains an independent deferred gate
+  - [x] Add note-driven three-oscillator and built-in wavetable sources with bounded polyphony and sample-offset note-on/off handling
+  - [x] Add a DC-blocking processor and launchable module
+  - [x] Add stable biquad filter modes and a parametric equalizer module
   - [ ] Compose the configurable channel strip from existing mapper, gain, and panner kernels
-  - [ ] Add DC blocking, then stable biquads/filters and parametric EQ
   - [ ] Follow with compressor/limiter and mixer metering
 
 - [~] Define stable IDs for modules, ports, parameters, devices, endpoints, bindings, surfaces, and widgets
@@ -349,6 +360,7 @@ Implement the smallest useful processing toolbox. Each item includes its command
 - [ ] Add wavetable oscillator with bounded table storage
 - [ ] Evolve the simple oscillator into a synth voice with note input and an integrated ADSR envelope
 - [ ] Add LFO and modulation messages
+- [x] Add per-voice amplitude ADSR, resonant low/high/band-pass filter, and separate filter ADSR to both note-driven synthesizers; publish startup parameters while preserving legacy defaults
 - [ ] Add polyphonic voice allocator with note stealing
 - [ ] Three-oscillator subtractive synthesizer instrument
   - Per-oscillator waveform, octave, semitone, fine tuning, phase, level, and enable controls

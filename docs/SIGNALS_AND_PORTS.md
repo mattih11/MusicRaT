@@ -348,8 +348,13 @@ pass through a deterministic chain of bounded `MusicRaTWidgetUpdateMerger`
 modules before reaching its synchronized input. Slider, knob, toggle, and
 button callbacks enqueue semantic events through a bounded SPSC queue; the
 periodic module callback publishes those events to generated control mappers.
-Programmatic feedback updates do not recursively emit controls. Physical
-controls remain semantic hardware-adapter sources rather than LVGL inputs.
+Programmatic feedback updates do not recursively emit controls. The LVGL sink
+also exposes a typed `NoteEventBlock` output for the manifest's keyboard widget;
+the Designer routes this output to a selected note-domain synchronized input.
+Key-down and key-up edges retain one note ID, and queue overflow is explicitly
+flagged so a consumer can reject the incomplete batch rather than sustain a
+stuck note. Physical controls remain semantic hardware-adapter sources rather
+than LVGL inputs.
 RatGUI rendering remains separate work.
 
 ### 6.9 Virtual Parameter Ports
@@ -387,13 +392,23 @@ Feedback must carry an origin/binding identifier or equivalent suppression state
 Notes remain separate from generic controls. The bounded event set supports:
 
 - Note on and note off
+- All-notes-off scoped to source endpoint and channel (releases envelopes)
 - Velocity and release velocity
 - Channel and stable note identity
 - Polyphonic pressure and per-note pitch/timbre expression
 - Sample offset within the target quantum
 - Source endpoint and sequence identity
 
-The MIDI adapter converts MIDI 1.0 messages into this model. MIDI 2.0, computer keyboard, sequencers, and other sources produce the same semantic events.
+The MIDI adapter converts MIDI 1.0 messages into this model. MIDI 2.0, computer
+keyboard, sequencers, and other sources produce the same semantic events. The
+LVGL piano keyboard is another semantic source: its single-octave keys are
+labeled, octave-selectable, and emit paired note-on/off events on touch.
+In the Application Designer, each LVGL keyboard also appears as a note source
+in the unified Graph. Its cables and UI Note targets selector share stable
+module/port references; export wires the generated display adapter's note
+output to the selected `NoteEventBlock` synchronized inputs. Multiple synths
+may subscribe to one display's stream, but each input must have only one
+source. Keyboard widgets on the same display share the stream.
 
 The core note contract is independent of MusicXML and raw MIDI encoding. MIDI parsing, running status, device timestamps, and channel filtering belong to backend adapter modules; instruments consume only `NoteEventBlock`. MusicXML conversion remains a separate, later producer of the same events.
 

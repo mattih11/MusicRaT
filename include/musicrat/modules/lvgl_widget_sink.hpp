@@ -17,12 +17,14 @@ namespace CommRaT {
 
 class LvglWidgetSink : public MusicRaT::Module2<
     commrat::Output<Messages::ControlEventBlock>,
+    commrat::Output<Messages::NoteEventBlock>,
     commrat::SyncedInput<Messages::WidgetUpdateBlock>,
     commrat::Period<commrat::Milliseconds(musicrat::config::default_block_period_ms)>,
     commrat::Params<Parameters::LvglWidgetSink>
 > {
     using Base = MusicRaT::Module2<
         commrat::Output<Messages::ControlEventBlock>,
+        commrat::Output<Messages::NoteEventBlock>,
         commrat::SyncedInput<Messages::WidgetUpdateBlock>,
         commrat::Period<commrat::Milliseconds(musicrat::config::default_block_period_ms)>,
         commrat::Params<Parameters::LvglWidgetSink>>;
@@ -47,6 +49,13 @@ public:
                 .domain = PORT_DOMAIN_TELEMETRY,
                 .required = false,
             },
+            {
+                .id = "note_events",
+                .display_name = "Note Events",
+                .direction = PORT_DIRECTION_OUTPUT,
+                .port_index = 1,
+                .domain = PORT_DOMAIN_NOTE,
+            },
         };
         metadata.musicrat_parameters.parameters = {
             {
@@ -55,6 +64,8 @@ public:
                 .display_name = "LVGL Manifest",
                 .group = "Surface",
                 .kind = PARAMETER_KIND_TEXT,
+                .unit = "",
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_DISPLAY_INSTANCE_PARAMETER_ID,
@@ -62,6 +73,8 @@ public:
                 .display_name = "Display Instance",
                 .group = "Surface",
                 .kind = PARAMETER_KIND_TEXT,
+                .unit = "",
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_WIDTH_PARAMETER_ID,
@@ -73,6 +86,7 @@ public:
                 .minimum = 1.0,
                 .maximum = 16384.0,
                 .step = 1.0,
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_HEIGHT_PARAMETER_ID,
@@ -84,6 +98,7 @@ public:
                 .minimum = 1.0,
                 .maximum = 16384.0,
                 .step = 1.0,
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_BACKEND_PARAMETER_ID,
@@ -91,6 +106,7 @@ public:
                 .display_name = "Display Backend",
                 .group = "Display",
                 .kind = PARAMETER_KIND_CHOICE,
+                .unit = "",
                 .choices = {
                     {.value = Parameters::LVGL_DISPLAY_BACKEND_HEADLESS, .label = "Headless"},
                     {.value = Parameters::LVGL_DISPLAY_BACKEND_DRM, .label = "DRM/KMS"},
@@ -104,6 +120,8 @@ public:
                 .display_name = "Display Device",
                 .group = "Display",
                 .kind = PARAMETER_KIND_TEXT,
+                .unit = "",
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_CONNECTOR_ID_PARAMETER_ID,
@@ -111,9 +129,11 @@ public:
                 .display_name = "DRM Connector ID",
                 .group = "Display",
                 .kind = PARAMETER_KIND_INTEGER,
+                .unit = "",
                 .minimum = -1.0,
                 .maximum = 4294967295.0,
                 .step = 1.0,
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_WINDOW_TITLE_PARAMETER_ID,
@@ -121,6 +141,8 @@ public:
                 .display_name = "Window Title",
                 .group = "Display",
                 .kind = PARAMETER_KIND_TEXT,
+                .unit = "",
+                .choices = {},
             },
             {
                 .id = Parameters::LVGL_WIDGET_SINK_DEVICE_ID_PARAMETER_ID,
@@ -140,6 +162,32 @@ public:
                 .display_name = "Input Device",
                 .group = "Display",
                 .kind = PARAMETER_KIND_TEXT,
+                .unit = "",
+                .choices = {},
+            },
+            {
+                .id = Parameters::LVGL_WIDGET_SINK_NOTE_SOURCE_ENDPOINT_ID_PARAMETER_ID,
+                .name = "note_source_endpoint_id",
+                .display_name = "Note Source Endpoint",
+                .group = "Notes",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "",
+                .minimum = 1.0,
+                .maximum = 4294967295.0,
+                .step = 1.0,
+                .choices = {},
+            },
+            {
+                .id = Parameters::LVGL_WIDGET_SINK_NOTE_CHANNEL_PARAMETER_ID,
+                .name = "note_channel",
+                .display_name = "Note Channel",
+                .group = "Notes",
+                .kind = PARAMETER_KIND_INTEGER,
+                .unit = "",
+                .minimum = 0.0,
+                .maximum = 15.0,
+                .step = 1.0,
+                .choices = {},
             },
         };
         return metadata;
@@ -164,7 +212,9 @@ protected:
     commrat::LifecycleResult on_enable() override {
         if (this->params_.manifest_path.empty()
             || this->params_.width == 0
-            || this->params_.height == 0) {
+            || this->params_.height == 0
+            || this->params_.note_source_endpoint_id == 0
+            || this->params_.note_channel >= 16) {
             return commrat::LifecycleResult::Failed;
         }
 
@@ -192,7 +242,8 @@ protected:
 
     void process(
         const commrat::Synced<Messages::WidgetUpdateBlock>& input,
-        Messages::ControlEventBlock& output) override {
+        Messages::ControlEventBlock& output,
+        Messages::NoteEventBlock& note_output) override {
         if (input.is_fresh()) {
             if (widget_updates_.push(input.value())) {
                 blocks_queued_.fetch_add(1, std::memory_order_relaxed);
@@ -210,6 +261,17 @@ protected:
         while (output.events.size() < Messages::ControlEventBlock::MAX_EVENTS
             && control_events_.pop(event)) {
             output.events.push_back(event);
+        }
+        note_output.events.clear();
+        note_output.timestamp_ns = output.timestamp_ns;
+        note_output.sequence_number = output.sequence_number;
+        note_output.flags = note_overflow_.exchange(false, std::memory_order_relaxed)
+            ? static_cast<uint16_t>(Messages::NOTE_EVENT_BLOCK_OVERFLOW)
+            : uint16_t{0};
+        Messages::NoteEvent note_event{};
+        while (note_output.events.size() < Messages::NoteEventBlock::MAX_EVENTS
+            && note_events_.pop(note_event)) {
+            note_output.events.push_back(note_event);
         }
     }
 
@@ -239,6 +301,25 @@ protected:
                 .flags = flags,
             })) {
             control_overflow_.store(true, std::memory_order_relaxed);
+        }
+    }
+
+    void queue_note_interaction(
+        uint32_t note_id,
+        uint8_t key,
+        float velocity,
+        bool note_on) noexcept {
+        if (note_id == 0 || key >= 128) return;
+        if (!note_events_.push({
+                .source_endpoint_id = this->params_.note_source_endpoint_id,
+                .note_id = note_id,
+                .sample_offset = 0,
+                .type = note_on ? Messages::NOTE_ON : Messages::NOTE_OFF,
+                .channel = this->params_.note_channel,
+                .key = key,
+                .value = velocity,
+            })) {
+            note_overflow_.store(true, std::memory_order_relaxed);
         }
     }
 
@@ -304,6 +385,8 @@ private:
             musicrat::backends::LvglWidgetRenderer renderer;
             renderer.set_interaction_handler(
                 handle_interaction, this);
+            renderer.set_note_interaction_handler(
+                handle_note_interaction, this);
             const auto loaded = renderer.load_surface(
                 *display,
                 lv_screen_active(),
@@ -344,12 +427,25 @@ private:
         sink.queue_interaction(widget_id, kind, value, flags);
     }
 
+    static void handle_note_interaction(
+        void* context,
+        std::string_view,
+        uint32_t note_id,
+        uint8_t key,
+        float velocity,
+        bool note_on) noexcept {
+        auto& sink = *static_cast<LvglWidgetSink*>(context);
+        sink.queue_note_interaction(note_id, key, velocity, note_on);
+    }
+
     musicrat::backends::LvglWidgetUpdateQueue<> widget_updates_{};
     musicrat::backends::LvglControlEventQueue<> control_events_{};
+    musicrat::backends::LvglNoteEventQueue<> note_events_{};
     std::atomic<uint64_t> blocks_queued_{0};
     std::atomic<uint64_t> blocks_dropped_{0};
     std::atomic<uint64_t> blocks_applied_{0};
     std::atomic<bool> control_overflow_{false};
+    std::atomic<bool> note_overflow_{false};
     uint64_t sequence_number_{0};
     std::atomic<UiState> ui_state_{UiState::Stopped};
     std::jthread ui_thread_{};

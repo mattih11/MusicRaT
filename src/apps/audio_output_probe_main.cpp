@@ -19,6 +19,7 @@ namespace {
 
 constexpr uint64_t telemetry_interval_ns = 1'000'000'000ULL;
 constexpr uint64_t maximum_probe_duration_seconds = 24 * 60 * 60;
+constexpr std::size_t backend_diagnostic_event_reserve = 32'768;
 
 struct TelemetrySample {
     uint64_t elapsed_ns{0};
@@ -138,7 +139,9 @@ int run(int argc, char** argv) {
         std::ceil(estimated_duration_seconds(total_frames, options)) + 2);
     std::vector<TelemetrySample> telemetry_samples(telemetry_capacity);
     std::vector<musicrat::backends::audio::AudioOutputDiagnosticEvent>
-        diagnostic_events(options.backend_events ? telemetry_capacity + 8192 : 0);
+        diagnostic_events(options.backend_events
+                ? telemetry_capacity + backend_diagnostic_event_reserve
+                : 0);
     musicrat::backends::audio::AudioOutputDiagnostics diagnostics{
         .events = diagnostic_events,
         .wait_scheduling = options.wait_scheduling != 0};

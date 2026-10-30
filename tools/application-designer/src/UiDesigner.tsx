@@ -12,7 +12,8 @@ import {
   parameterTargetOptions,
 } from './binding-editor-model'
 import { componentDefinition } from './component-catalog'
-import { actionsOf, type DesignerModule, type MusicRaTControlProject, type SurfaceWidget } from './model'
+import { keyboardNoteTargets, noteInputTargets, type DesignerModule, type MusicRaTControlProject, type SurfaceWidget } from './model'
+import { actionTargets, observableTargets } from './graph-targets'
 import { uiComponentCatalog, uiComponentDefinition } from './ui-component-catalog'
 import {
   addSurfaceWidget,
@@ -51,16 +52,15 @@ export function UiDesigner({ control, modules, onChange }: UiDesignerProps) {
     displayHeight: number
   } | null>(null)
   const parameterOptions = parameterTargetOptions(modules)
-  const actionOptions = actionTargetOptions(modules).filter((option) => {
-    const module = modules.find((item) => item.id === option.target.module_id)
-    const action = module && actionsOf(module.descriptor)
-      .find((item) => item.id === option.target.action_id)
-    return action && definition?.domain
-      && (action.kind === definition.domain
-        || action.kind === 'trigger' && ['trigger', 'boolean'].includes(definition.domain)
-        || action.kind === 'continuous' && ['unipolar', 'bipolar'].includes(definition.domain))
-  })
-  const feedbackOptions = observableOptions(modules)
+  const actionOptions = actionTargetOptions(modules).filter((option) =>
+    definition?.domain && actionTargets(modules, {
+      id: '', display_name: '', direction: 'input', domain: definition.domain,
+    }).some((target) => target.module.id === option.target.module_id
+      && target.action.id === option.target.action_id))
+  const feedbackOptions = observableOptions(modules).filter((option) =>
+    observableTargets(modules).some((target) => target.module.id === option.reference.module_id
+      && target.observable.id === option.reference.observable_id))
+  const noteTargets = noteInputTargets(modules)
   const displayElement = project.deck?.elements.find((element) =>
     surface?.id === `display-${element.id}`)
   const displayDefinition = displayElement && componentDefinition(displayElement.component_id)
@@ -215,6 +215,22 @@ export function UiDesigner({ control, modules, onChange }: UiDesignerProps) {
           <option value="feedback">Feedback</option>
           <option value="bidirectional">Control + feedback</option>
         </select></label>}
+        {selected.kind === 'keyboard' && <label><span>Note targets</span>
+          <select aria-label="Keyboard note targets" multiple
+            value={keyboardNoteTargets(selected, modules).map((target) =>
+              JSON.stringify([target.module_id, target.port_id]))}
+            onChange={(event) => updateSelected({
+              note_target_module_id: undefined,
+              note_targets: Array.from(event.target.selectedOptions).map((option) => {
+                const target = noteTargets.find((candidate) =>
+                  JSON.stringify([candidate.module_id, candidate.port_id]) === option.value)!
+                return { module_id: target.module_id, port_id: target.port_id }
+              }),
+            })}>
+            {noteTargets.map((target) =>
+              <option key={JSON.stringify([target.module_id, target.port_id])}
+                value={JSON.stringify([target.module_id, target.port_id])}>{target.label}</option>)}
+          </select><small>Also connect or disconnect note cables in Graph.</small></label>}
         {selected.route !== 'feedback' && definition.domain && <label><span>Control target</span>
           <select aria-label="Widget control target"
             value={selected.parameter

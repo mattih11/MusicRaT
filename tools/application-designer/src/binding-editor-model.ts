@@ -3,6 +3,8 @@ import {
   bindingModesForEndpoint,
   observablesOf,
   parametersOf,
+  payloadType,
+  portsOf,
   type ActionTarget,
   type ControlBinding,
   type DesignerModule,
@@ -134,6 +136,8 @@ export function parameterTargetOptions(modules: DesignerModule[]): ParameterTarg
 export function controllableParameters(
   descriptor: DesignerModule['descriptor'],
 ): ReturnType<typeof parametersOf> {
+  if (portsOf(descriptor).filter((port) => port.direction === 'synced_input'
+    && payloadType(descriptor, port) === 'CommRaT::Messages::ParameterEventBlock').length !== 1) return []
   return parametersOf(descriptor)
     .filter((parameter) =>
       parameter.automatable && !parameter.read_only && parameter.kind !== 'text')
@@ -156,7 +160,7 @@ export function observableOptions(modules: DesignerModule[]): ObservableOption[]
   })))
 }
 
-export function nextBindingId(bindings: ControlBinding[]): string {
+export function nextBindingId(bindings: Array<{ id: string }>): string {
   let suffix = 1
   while (bindings.some((binding) => binding.id === `binding-${suffix}`)) suffix += 1
   return `binding-${suffix}`

@@ -14,6 +14,7 @@ set(MUSICRAT_MAX_AUDIO_FRAMES "4096" CACHE STRING "Maximum frames per audio bloc
 set(MUSICRAT_MAX_CONTROL_EVENTS "256" CACHE STRING "Maximum semantic control events in one block")
 set(MUSICRAT_MAX_PARAMETER_EVENTS "256" CACHE STRING "Maximum parameter events in one block")
 set(MUSICRAT_MAX_NOTE_EVENTS "256" CACHE STRING "Maximum note events in one block")
+set(MUSICRAT_MAX_SYNTH_VOICES "16" CACHE STRING "Maximum simultaneous synthesizer voices")
 set(MUSICRAT_FILE_PROXY_BYTES "262144" CACHE STRING "CoreRaT file-proxy buffer size in bytes")
 set(MUSICRAT_DEFAULT_SAMPLE_RATE_HZ "48000.0" CACHE STRING "Default sample rate in Hz")
 set(MUSICRAT_DEFAULT_BLOCK_PERIOD_MS "10" CACHE STRING "Default processing period in milliseconds")
@@ -39,7 +40,7 @@ if(NOT MUSICRAT_SAMPLE_TYPE MATCHES "^(float|double)$")
     message(FATAL_ERROR "MUSICRAT_SAMPLE_TYPE must be float or double")
 endif()
 
-foreach(setting MUSICRAT_MAX_AUDIO_CHANNELS MUSICRAT_MAX_AUDIO_FRAMES MUSICRAT_MAX_CONTROL_EVENTS MUSICRAT_MAX_PARAMETER_EVENTS MUSICRAT_MAX_NOTE_EVENTS MUSICRAT_FILE_PROXY_BYTES MUSICRAT_DEFAULT_BLOCK_PERIOD_MS)
+foreach(setting MUSICRAT_MAX_AUDIO_CHANNELS MUSICRAT_MAX_AUDIO_FRAMES MUSICRAT_MAX_CONTROL_EVENTS MUSICRAT_MAX_PARAMETER_EVENTS MUSICRAT_MAX_NOTE_EVENTS MUSICRAT_MAX_SYNTH_VOICES MUSICRAT_FILE_PROXY_BYTES MUSICRAT_DEFAULT_BLOCK_PERIOD_MS)
     if(NOT ${setting} MATCHES "^[1-9][0-9]*$")
         message(FATAL_ERROR "${setting} must be a positive integer")
     endif()
@@ -74,7 +75,7 @@ configure_file(
     @ONLY
 )
 
-message(STATUS "MusicRaT audio policy: ${MUSICRAT_SAMPLE_TYPE}, ${MUSICRAT_MAX_AUDIO_CHANNELS} channels, ${MUSICRAT_MAX_AUDIO_FRAMES} frames, ${MUSICRAT_MAX_CONTROL_EVENTS} control events, ${MUSICRAT_MAX_PARAMETER_EVENTS} parameter events, ${MUSICRAT_MAX_NOTE_EVENTS} note events, ${MUSICRAT_FILE_PROXY_BYTES} file-proxy bytes, ${MUSICRAT_DEFAULT_SAMPLE_RATE_HZ} Hz, ${MUSICRAT_DEFAULT_BLOCK_PERIOD_MS} ms")
+message(STATUS "MusicRaT audio policy: ${MUSICRAT_SAMPLE_TYPE}, ${MUSICRAT_MAX_AUDIO_CHANNELS} channels, ${MUSICRAT_MAX_AUDIO_FRAMES} frames, ${MUSICRAT_MAX_CONTROL_EVENTS} control events, ${MUSICRAT_MAX_PARAMETER_EVENTS} parameter events, ${MUSICRAT_MAX_NOTE_EVENTS} note events, ${MUSICRAT_MAX_SYNTH_VOICES} synth voices, ${MUSICRAT_FILE_PROXY_BYTES} file-proxy bytes, ${MUSICRAT_DEFAULT_SAMPLE_RATE_HZ} Hz, ${MUSICRAT_DEFAULT_BLOCK_PERIOD_MS} ms")
 
 # Set CMake prefix path to find packages
 list(APPEND CMAKE_PREFIX_PATH /usr/local/lib/cmake/CommRaT)
@@ -288,10 +289,13 @@ if(MUSICRAT_LVGL_SOURCE_DIR)
             LV_SDL_DIRECT_EXIT=1)
         target_link_libraries(lvgl PUBLIC PkgConfig::SDL2)
     endif()
-    target_compile_definitions(lvgl PUBLIC LV_USE_EVDEV=1)
+    target_compile_definitions(lvgl PUBLIC
+        LV_USE_EVDEV=1
+        LV_USE_STDLIB_MALLOC=LV_STDLIB_CLIB)
 
     add_library(musicrat_lvgl_widgets
         src/backends/lvgl_display_backend.cpp
+        src/backends/lvgl_touch_input.cpp
         src/backends/lvgl_widget_renderer.cpp)
     target_link_libraries(musicrat_lvgl_widgets
         PUBLIC musicrat_core lvgl::lvgl)
@@ -431,6 +435,41 @@ if(BUILD_MUSICRAT)
         musicrat_core
     )
     target_compile_definitions(musicrat_oscillator PRIVATE BUILD_MUSICRAT)
+
+    commrat_module(musicrat_three_oscillator
+        SOURCES src/modules/three_oscillator_main.cpp
+        MODULE_CLASS MusicRaTThreeOscillator
+        LINKS
+        musicrat_core
+    )
+
+    commrat_module(musicrat_wavetable_oscillator
+        SOURCES src/modules/wavetable_oscillator_main.cpp
+        MODULE_CLASS MusicRaTWavetableOscillator
+        LINKS
+        musicrat_core
+    )
+
+    commrat_module(musicrat_dc_blocker
+        SOURCES src/modules/dc_blocker_main.cpp
+        MODULE_CLASS MusicRaTDcBlocker
+        LINKS
+        musicrat_core
+    )
+
+    commrat_module(musicrat_biquad_filter
+        SOURCES src/modules/biquad_filter_main.cpp
+        MODULE_CLASS MusicRaTBiquadFilter
+        LINKS
+        musicrat_core
+    )
+
+    commrat_module(musicrat_parametric_equalizer
+        SOURCES src/modules/parametric_equalizer_main.cpp
+        MODULE_CLASS MusicRaTParametricEqualizer
+        LINKS
+        musicrat_core
+    )
 
     commrat_module(musicrat_parameter_source
         SOURCES src/modules/parameter_source_main.cpp
@@ -580,6 +619,11 @@ if(BUILD_MUSICRAT)
     # Compiler warnings
     if(MSVC)
         target_compile_options(musicrat_oscillator PRIVATE /W4)
+        target_compile_options(musicrat_three_oscillator PRIVATE /W4)
+        target_compile_options(musicrat_wavetable_oscillator PRIVATE /W4)
+        target_compile_options(musicrat_dc_blocker PRIVATE /W4)
+        target_compile_options(musicrat_biquad_filter PRIVATE /W4)
+        target_compile_options(musicrat_parametric_equalizer PRIVATE /W4)
         target_compile_options(musicrat_parameter_source PRIVATE /W4)
         target_compile_options(musicrat_control_mapper PRIVATE /W4)
         target_compile_options(musicrat_action_mapper PRIVATE /W4)
@@ -604,6 +648,11 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_launcher PRIVATE /W4)
     else()
         target_compile_options(musicrat_oscillator PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_three_oscillator PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_wavetable_oscillator PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_dc_blocker PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_biquad_filter PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_parametric_equalizer PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_parameter_source PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_control_mapper PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_action_mapper PRIVATE -Wall -Wextra -Wpedantic)
@@ -630,6 +679,11 @@ if(BUILD_MUSICRAT)
 
     install(TARGETS
         musicrat_oscillator
+        musicrat_three_oscillator
+        musicrat_wavetable_oscillator
+        musicrat_dc_blocker
+        musicrat_biquad_filter
+        musicrat_parametric_equalizer
         musicrat_parameter_source
         musicrat_control_mapper
         musicrat_action_mapper
@@ -658,6 +712,11 @@ if(BUILD_MUSICRAT)
     endfunction()
 
     musicrat_install_module_descriptor(musicrat_oscillator MusicRaTSineOscillator)
+    musicrat_install_module_descriptor(musicrat_three_oscillator MusicRaTThreeOscillator)
+    musicrat_install_module_descriptor(musicrat_wavetable_oscillator MusicRaTWavetableOscillator)
+    musicrat_install_module_descriptor(musicrat_dc_blocker MusicRaTDcBlocker)
+    musicrat_install_module_descriptor(musicrat_biquad_filter MusicRaTBiquadFilter)
+    musicrat_install_module_descriptor(musicrat_parametric_equalizer MusicRaTParametricEqualizer)
     musicrat_install_module_descriptor(musicrat_parameter_source MusicRaTParameterSource)
     musicrat_install_module_descriptor(musicrat_control_mapper MusicRaTControlMapper)
     musicrat_install_module_descriptor(musicrat_action_mapper MusicRaTActionMapper)
@@ -731,6 +790,18 @@ if(BUILD_TESTING)
     target_link_libraries(musicrat_gain_test PRIVATE musicrat_core)
     add_test(NAME musicrat.dsp.gain COMMAND musicrat_gain_test)
 
+    add_executable(musicrat_filter_processors_test
+        tests/dsp/filter_processors_test.cpp)
+    target_link_libraries(musicrat_filter_processors_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.filter_processors
+        COMMAND musicrat_filter_processors_test)
+
+    add_executable(musicrat_note_oscillator_test
+        tests/dsp/note_oscillator_test.cpp)
+    target_link_libraries(musicrat_note_oscillator_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.note_oscillator
+        COMMAND musicrat_note_oscillator_test)
+
     if(TARGET musicrat_lvgl_widgets)
         add_executable(musicrat_lvgl_display_backend_test
             tests/backends/lvgl_display_backend_test.cpp)
@@ -738,6 +809,13 @@ if(BUILD_TESTING)
             PRIVATE musicrat_lvgl_widgets)
         add_test(NAME musicrat.backends.lvgl_display_backend
             COMMAND musicrat_lvgl_display_backend_test)
+
+        add_executable(musicrat_lvgl_touch_input_test
+            tests/backends/lvgl_touch_input_test.cpp)
+        target_link_libraries(musicrat_lvgl_touch_input_test
+            PRIVATE musicrat_lvgl_widgets)
+        add_test(NAME musicrat.backends.lvgl_touch_input
+            COMMAND musicrat_lvgl_touch_input_test)
 
         add_executable(musicrat_lvgl_widget_renderer_test
             tests/backends/lvgl_widget_renderer_test.cpp)
@@ -1074,9 +1152,9 @@ if(BUILD_TESTING)
         COMMAND musicrat_module_metadata_test)
 
     if(TARGET musicrat_launcher)
-        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 20)
+        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 25)
         if(TARGET musicrat_lvgl_widget_sink)
-            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 21)
+            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 26)
         endif()
         add_test(
             NAME musicrat.integration.install_descriptors
@@ -1201,6 +1279,10 @@ if(BUILD_TESTING)
                 examples/configs/tone_to_device_lvgl.json.in
                 "${PROJECT_BINARY_DIR}/tone_to_device_lvgl.json"
                 @ONLY)
+            configure_file(
+                examples/configs/note_keyboard_to_device_lvgl.json.in
+                "${PROJECT_BINARY_DIR}/note_keyboard_to_device_lvgl.json"
+                @ONLY)
             if(MUSICRAT_LVGL_ENABLE_DRM)
                 set(MUSICRAT_LVGL_EXAMPLE_BACKEND 1)
                 configure_file(
@@ -1219,6 +1301,7 @@ if(BUILD_TESTING)
             if(MUSICRAT_LVGL_ENABLE_SDL)
                 set(MUSICRAT_LVGL_EXAMPLE_BACKEND 3)
                 set(MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH "")
+                set(MUSICRAT_LVGL_EXAMPLE_INPUT_DEVICE_PATH "")
                 configure_file(
                     examples/configs/level_meter_to_lvgl.json.in
                     "${PROJECT_BINARY_DIR}/level_meter_to_sdl.json"
@@ -1234,6 +1317,14 @@ if(BUILD_TESTING)
                 configure_file(
                     examples/configs/tone_to_device_lvgl.json.in
                     "${PROJECT_BINARY_DIR}/tone_to_device_lvgl_sdl.json"
+                    @ONLY)
+                configure_file(
+                    examples/configs/note_keyboard_to_device_lvgl.json.in
+                    "${PROJECT_BINARY_DIR}/note_keyboard_to_device_lvgl_sdl.json"
+                    @ONLY)
+                configure_file(
+                    examples/configs/note_keyboard_through_eq_to_device_lvgl.json.in
+                    "${PROJECT_BINARY_DIR}/note_keyboard_through_eq_to_device_lvgl_sdl.json"
                     @ONLY)
             endif()
             add_test(
@@ -1290,6 +1381,12 @@ if(BUILD_TESTING)
                 "$<TARGET_FILE:musicrat_launcher>"
                 "${PROJECT_SOURCE_DIR}/examples/configs/tone_through_processors_to_wav.json"
             )
+            add_test(
+                NAME musicrat.integration.tone_through_filters_to_wav
+                COMMAND musicrat_tone_to_wav_test
+                    "$<TARGET_FILE:musicrat_launcher>"
+                    "${PROJECT_SOURCE_DIR}/examples/configs/tone_through_filters_to_wav.json"
+                )
         add_executable(musicrat_audio_file_player_to_wav_test
             tests/integration/audio_file_player_to_wav_test.cpp)
         target_link_libraries(musicrat_audio_file_player_to_wav_test PRIVATE musicrat_core)
@@ -1396,8 +1493,10 @@ if(BUILD_TESTING)
             musicrat.integration.controlled_gain
             musicrat.integration.level_meter_to_ui
             musicrat.integration.tone_to_wav
+            musicrat.integration.tone_through_channel_mapper_to_wav
             musicrat.integration.tone_through_stereo_panner_to_wav
             musicrat.integration.tone_through_processors_to_wav
+            musicrat.integration.tone_through_filters_to_wav
             musicrat.integration.audio_file_player_to_wav
             musicrat.integration.control_actions_to_audio_file_player
             musicrat.integration.audio_file_player_transport_sync_to_wav

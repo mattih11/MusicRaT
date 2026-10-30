@@ -16,6 +16,8 @@ Application-wide settings are CMake cache variables. CMake validates them and ge
 | `MUSICRAT_MAX_AUDIO_CHANNELS` | `8` | `musicrat::config::max_audio_channels` | Maximum channels in one block |
 | `MUSICRAT_MAX_AUDIO_FRAMES` | `4096` | `musicrat::config::max_audio_frames` | Maximum frames per channel and block |
 | `MUSICRAT_MAX_PARAMETER_EVENTS` | `256` | `musicrat::config::max_parameter_events` | Maximum timestamped parameter events in one block |
+| `MUSICRAT_MAX_NOTE_EVENTS` | `256` | `musicrat::config::max_note_events` | Maximum semantic note events in one block |
+| `MUSICRAT_MAX_SYNTH_VOICES` | `16` | `musicrat::config::max_synth_voices` | Maximum simultaneous voices per note-driven synthesizer |
 | `MUSICRAT_FILE_PROXY_BYTES` | `262144` | `musicrat::config::file_proxy_bytes` | CoreRaT file-proxy capacity; must hold one maximum interleaved PCM16 block |
 | `MUSICRAT_DEFAULT_SAMPLE_RATE_HZ` | `48000.0` | `musicrat::config::default_sample_rate_hz` | Default module sample rate |
 | `MUSICRAT_DEFAULT_BLOCK_PERIOD_MS` | `10` | `musicrat::config::default_block_period_ms` | Default timer-driven processing period |
@@ -220,12 +222,39 @@ The optional `musicrat_lvgl_widgets` backend creates meter, toggle, text,
 slider, knob, and button widgets from the Designer's LVGL manifest. It applies
 normalized value, active, and text updates on the caller's LVGL thread. Enable it by setting
 `MUSICRAT_LVGL_SOURCE_DIR` to an LVGL source tree. Its bounded SPSC queue keeps
-message callbacks separate from LVGL calls. The optional
+message callbacks separate from LVGL calls. LVGL uses the C library allocator on
+the in-band UI thread rather than its default 64 KiB embedded heap: larger
+surfaces and transient redraw tasks can exhaust that pool during interaction.
+This does not permit allocation in audio processing or message callbacks. The optional
 `MusicRaTLvglWidgetSink` publishes `ControlEventBlock`, optionally subscribes
 to synchronized `WidgetUpdateBlock`, loads a Designer manifest, and drains
 updates on its lifecycle-owned LVGL thread. Slider, knob, toggle, and button
 callbacks enqueue bounded semantic events for its periodic CommRaT callback;
-programmatic widget updates are suppressed from that outbound path. The
+programmatic widget updates are suppressed from that outbound path. Its
+`NoteEventBlock` output carries touch-keyboard note edges separately from
+generic controls. A keyboard widget renders one octave of labeled piano keys
+with octave-down/up controls; touch press and release/press-loss emit paired
+note-on/off events with stable per-press note IDs and the selected MIDI channel.
+Linux protocol-B multitouch devices use one independent LVGL pointer per contact
+slot (up to 16), allowing chords and simultaneous keyboard/control touches.
+The kernel must expose `ABS_MT_SLOT`, tracking IDs, and multitouch position axes;
+single-pointer devices retain the existing evdev path. Each key remains held
+until its last touching finger releases. Slot reuse ends the old note before
+starting the new one. Input disconnects or `SYN_DROPPED` explicitly cancel held
+notes; after dropped events, lift and retouch to resume playing.
+The Designer routes the keyboard output to a selected note-domain synchronized
+input, such as `MusicRaTThreeOscillator` or `MusicRaTWavetableOscillator`.
+Run the generated `note_keyboard_to_device_lvgl_sdl.json` on SDL for a desktop
+preview; adapt `note_keyboard_to_device_lvgl.json` to an installed H4 display
+when ready. The example's manifest is
+`examples/configs/note_keyboard.lvgl.json`. The
+`note_keyboard_through_eq_to_device_lvgl_sdl.json` example places three band
+gain sliders above the keyboard and routes them through `MusicRaTControlMapper`
+as sample-offset `ParameterEventBlock` events to the parametric equalizer.
+The EQ consumes those events in real time; its frequency and Q settings remain
+startup parameters in this example. Its illustrative synth preset also
+demonstrates amplitude ADSR and a low-pass filter with filter ADSR; that example
+sets the synth fields at startup, while its EQ sliders remain live. The
 `level_meter_to_lvgl` launcher test proves the complete typed route with a
 headless display. Strict Designer export creates one sink per observed display
 and chains bounded `MusicRaTWidgetUpdateMerger` modules when several typed
@@ -304,6 +333,66 @@ Construction fails when the period is non-positive, the sample rate is invalid, 
 ```
 
 The source-only `sine_oscillator.json` remains a minimal descriptor/lifecycle example. `controlled_gain.json` runs `parameter source -> gain control` alongside `oscillator -> gain -> level meter -> null sink`, with meter snapshots routed to a telemetry sink. A bounded CTest launcher smoke test covers the complete graph.
+
+## Note-Driven Oscillators
+
+`MusicRaTThreeOscillator` and `MusicRaTWavetableOscillator` are periodic audio
+sources with a synchronized `NoteEventBlock` input. They consume sample-offset
+`NOTE_ON` and `NOTE_OFF` events, use MIDI key numbers with A4 = 440 Hz, and
+allocate a bounded number of voices from `MUSICRAT_MAX_SYNTH_VOICES`. When all
+voices are occupied, note-on deterministically steals voices in round-robin
+order. A configurable short attack/release ramp reduces abrupt note edges.
+Both sources now provide independent amplitude and filter ADSR envelopes. The
+amplitude envelope scales each voice after filtering; note-off and all-notes-off
+start each envelope's release at the event's sample offset. The all-notes-off
+event releases notes from the same source endpoint and MIDI channel. Retriggers
+and stolen voices restart both envelopes and clear that voice's filter state;
+processor reset clears all voice, phase, and filter state.
+
+Each source has a per-voice resonant low-pass, high-pass, or band-pass biquad,
+with selectable bypass as the compatibility default. Cutoff is modulated by
+the filter ADSR in octaves, and resonance is its Q. Oscillator parameters,
+amplitude ADSR fields (`amplitude_attack_ms`, `amplitude_decay_ms`,
+`amplitude_sustain_level`, `amplitude_release_ms`), and filter fields
+(`filter_mode`, `filter_cutoff_hz`, `filter_resonance`, `filter_attack_ms`,
+`filter_decay_ms`, `filter_sustain_level`, `filter_release_ms`, and
+`filter_env_amount_octaves`) are flat startup parameters in the module
+descriptors. ThreeOscillator additionally consumes a `ParameterEventBlock` on
+synchronized input 1 (notes remain at input 0), applying IDs 2 through 24 at
+their exact sample offsets. Its parameter-state output at output 1 publishes
+authoritative sound settings for UI feedback. Sample rate (ID 1) stays a
+startup setting because it determines the producer's frame count and timing.
+WavetableOscillator settings remain startup-only. The existing `envelope_ms` field and
+parameter ID remain supported as the legacy attack/release setting when the
+new amplitude ADSR fields are left at their defaults.
+
+ThreeOscillator waveform, tuning, gain, and filter changes affect rendering
+from the event offset onward. ADSR settings are captured when a voice starts;
+changes affect subsequent notes, without restarting held envelopes. Invalid,
+nonfinite, unsorted, or out-of-block parameter events flag the audio block
+invalid rather than silently accepting a partial update.
+
+The three-oscillator source has independent waveform, semitone offset, and
+level settings for each of its three oscillators. The wavetable source builds
+its selected built-in waveform table outside the sample loop and interpolates
+table reads while rendering.
+
+These initial note modules support note-on/off only; pitch, pressure, and
+timbre expression events are not yet consumed. Square and sawtooth table
+shapes are not band-limited, so high notes can alias. Both modules publish a
+mono audio output and a note-domain synchronized input for semantic note
+sources such as the LVGL keyboard.
+
+## Filters and Equalization
+
+`MusicRaTDcBlocker` applies a first-order DC blocker with per-channel state and
+resets that state on audio discontinuities. `MusicRaTBiquadFilter` provides
+low-pass, high-pass, band-pass, notch, peaking, low-shelf, and high-shelf modes.
+`MusicRaTParametricEqualizer` cascades a low shelf, peaking mid band, and high
+shelf. These processors derive coefficients from each block's active sample
+rate, use fixed per-channel state, clamp startup parameters to bounded ranges,
+and perform no allocation in the audio loop. Filter and EQ parameters are
+startup settings in this first version; they are not yet automatable.
 
 ## Validation
 
