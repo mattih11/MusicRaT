@@ -22,6 +22,20 @@ inline constexpr DeckControlType DECK_CONTROL_SET_LOOP_START = 7;
 inline constexpr DeckControlType DECK_CONTROL_SET_LOOP_END = 8;
 inline constexpr DeckControlType DECK_CONTROL_ENABLE_LOOP = 9;
 inline constexpr DeckControlType DECK_CONTROL_DISABLE_LOOP = 10;
+inline constexpr DeckControlType DECK_CONTROL_CUE_BUTTON_DOWN = 11;
+inline constexpr DeckControlType DECK_CONTROL_CUE_BUTTON_UP = 12;
+inline constexpr DeckControlType DECK_CONTROL_CUE_BUTTON_HOLD = 13;
+
+struct DeckMarkerState {
+    uint64_t cue_frame{0};
+    uint64_t loop_start_frame{0};
+    uint64_t loop_end_frame{0};
+    bool cue_set{false};
+    bool loop_start_set{false};
+    bool loop_end_set{false};
+    bool loop_enabled{false};
+    bool operator==(const DeckMarkerState&) const = default;
+};
 
 using DeckControlQuantization = uint8_t;
 

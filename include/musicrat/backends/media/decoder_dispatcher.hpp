@@ -129,10 +129,13 @@ private:
                 last_error_ = DecodeError::None;
                 return true;
             }
-            last_error_ = decoder.last_error();
+            const auto error = decoder.last_error();
             decoder.close();
             decoder_.template emplace<0>();
-            return try_open<Index + 1>(path);
+            if (try_open<Index + 1>(path)) return true;
+            // If all probes reject, preserve the highest-priority probe's error.
+            last_error_ = error;
+            return false;
         }
     }
 

@@ -3,7 +3,8 @@ import { nextBindingId, nextSemanticBindingId } from './binding-editor-model'
 import { compileLaunchApplication } from './control-compiler'
 import {
   actionTargets, observableTargets, parameterTargets, supportsParameterState,
-  widgetAcceptsFeedback, widgetFeedbackProperty,
+  widgetAcceptsObservable,
+  widgetAcceptsFeedback,
 } from './graph-targets'
 import { connectKeyboard, disconnectKeyboardEdges, projectKeyboardGraph } from './keyboard-graph-model'
 import { modulePortDisplayName } from './module-node-model'
@@ -399,8 +400,7 @@ export function connectGraph(workspace: DesignerWorkspace, projection: GraphProj
     const widget = surface.widgets.find((item) => item.id === target.widget_id)!
     const observable = observableTargets(workspace.modules).find((item) =>
       item.module.id === source.reference.module_id && item.observable.id === source.reference.observable_id)!.observable
-    const property = widgetFeedbackProperty(widget)
-    if ((observable.selector === 'clipped') !== (property === 'active') || property === 'text') {
+    if (!widgetAcceptsObservable(widget, observable)) {
       throw new Error('This feedback value is incompatible with the widget property.')
     }
     if (widget.parameter || widget.observation_binding_id) throw new Error('Disconnect existing widget feedback before choosing another source.')

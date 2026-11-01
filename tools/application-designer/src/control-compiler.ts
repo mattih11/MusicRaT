@@ -21,6 +21,8 @@ import {
   validateWorkspace,
 } from './model'
 import { compileDeckArtifacts } from './deck-compiler'
+import { playbackObservationProperty, playbackSelectors } from './playback-observations'
+import { widgetAcceptsObservable, widgetFeedbackProperty } from './graph-targets'
 
 const controlKinds: Partial<Record<ControlValueDomain, number>> = {
   unipolar: 0,
@@ -134,12 +136,33 @@ export interface CompiledLevelMeterObservationBinding {
 }
 
 export interface CompiledLevelMeterUiAdapterModule {
+  module_class: 'MusicRaTLevelMeterUiAdapter'
   module_id: string
   source_module_id: string
   source_port_id: string
   surface_id: string
   params: { bindings: CompiledLevelMeterObservationBinding[] }
 }
+
+export interface CompiledPlaybackStatusUiAdapterModule {
+  module_class: 'MusicRaTPlaybackStatusUiAdapter'
+  module_id: string
+  source_module_id: string
+  source_port_id: string
+  surface_id: string
+  params: { bindings: {
+    binding_id: number
+    surface_id: string
+    widget_id: string
+    property: number
+    selector: number
+    minimum: number
+    maximum: number
+  }[] }
+}
+
+type CompiledObservationUiAdapterModule =
+  CompiledLevelMeterUiAdapterModule | CompiledPlaybackStatusUiAdapterModule
 
 export interface CompiledParameterStateUiBinding {
   binding_id: number
@@ -166,7 +189,7 @@ export interface CompiledControlPlan {
   observation_binding_ids: RuntimeIdEntry[]
   mappers: CompiledControlMapperModule[]
   action_mappers: CompiledActionMapperModule[]
-  observation_adapters: CompiledLevelMeterUiAdapterModule[]
+  observation_adapters: CompiledObservationUiAdapterModule[]
   parameter_state_adapters: CompiledParameterStateUiAdapterModule[]
   feedback_routers: CompiledControlFeedbackRouterModule[]
 }
@@ -286,7 +309,7 @@ export function compileControlPlan(
       : []))
   const groups = new Map<string, CompiledControlMapperModule>()
   const actionGroups = new Map<string, CompiledActionMapperModule>()
-  const observationGroups = new Map<string, CompiledLevelMeterUiAdapterModule>()
+  const observationGroups = new Map<string, CompiledObservationUiAdapterModule>()
   const parameterStateGroups = new Map<string, CompiledParameterStateUiAdapterModule>()
   const feedbackGroups = new Map<string, CompiledControlFeedbackRouterModule>()
 
@@ -449,6 +472,53 @@ export function compileControlPlan(
     const sourcePort = portsOf(sourceModule.descriptor).find(
       (port) => port.id === observable.output_port_id)!
     const payload = payloadType(sourceModule.descriptor, sourcePort)
+    const targetWidget = control.surfaces.find((surface) => surface.id === binding.target.surface_id)!
+      .widgets.find((widget) => widget.id === binding.target.widget_id)!
+    if (!widgetAcceptsObservable(targetWidget, observable)
+        || widgetFeedbackProperty(targetWidget) !== binding.target.property) {
+      throw new Error(`Observation '${binding.id}' is incompatible with its target widget.`)
+    }
+    const groupKey = `${sourceModule.id}\u0000${sourcePort.id}\u0000${binding.target.surface_id}`
+    if (payload === 'CommRaT::Messages::PlaybackStatusBlock') {
+      const property = playbackObservationProperty(observable.selector)
+      if (property === undefined || property !== binding.target.property
+          || binding.source.channel !== undefined) {
+        throw new Error(
+          `Observation '${binding.id}' has an unsupported playback selector, property, or channel.`,
+        )
+      }
+      if (observable.kind === 'continuous'
+          && (!Number.isFinite(observable.minimum) || !Number.isFinite(observable.maximum)
+            || observable.minimum >= observable.maximum
+            || !Number.isFinite(observable.maximum - observable.minimum))) {
+        throw new Error(`Observation '${binding.id}' has an invalid playback range.`)
+      }
+      let group = observationGroups.get(groupKey)
+      if (!group) {
+        group = {
+          module_class: 'MusicRaTPlaybackStatusUiAdapter',
+          module_id: `PlaybackStatusUiAdapter_${observationGroups.size + 1}`,
+          source_module_id: sourceModule.id,
+          source_port_id: sourcePort.id,
+          surface_id: binding.target.surface_id,
+          params: { bindings: [] },
+        }
+        observationGroups.set(groupKey, group)
+      }
+      if (group.module_class !== 'MusicRaTPlaybackStatusUiAdapter') {
+        throw new Error(`Observation '${binding.id}' has conflicting payloads.`)
+      }
+      group.params.bindings.push({
+        binding_id: observationBindingIds.get(binding.id)!,
+        surface_id: binding.target.surface_id,
+        widget_id: binding.target.widget_id,
+        property: widgetProperties[property],
+        selector: playbackSelectors[observable.selector as keyof typeof playbackSelectors],
+        minimum: observable.minimum,
+        maximum: observable.maximum,
+      })
+      continue
+    }
     if (payload !== 'CommRaT::Messages::LevelMeterBlock') {
       throw new Error(
         `Observation '${binding.id}' uses unsupported typed payload '${payload ?? 'unknown'}'.`,
@@ -467,10 +537,10 @@ export function compileControlPlan(
         `Observation '${binding.id}' property is incompatible with '${observable.selector}'.`,
       )
     }
-    const groupKey = `${sourceModule.id}\u0000${sourcePort.id}\u0000${binding.target.surface_id}`
     let group = observationGroups.get(groupKey)
     if (!group) {
       group = {
+        module_class: 'MusicRaTLevelMeterUiAdapter',
         module_id: `LevelMeterUiAdapter_${observationGroups.size + 1}`,
         source_module_id: sourceModule.id,
         source_port_id: sourcePort.id,
@@ -478,6 +548,9 @@ export function compileControlPlan(
         params: { bindings: [] },
       }
       observationGroups.set(groupKey, group)
+    }
+    if (group.module_class !== 'MusicRaTLevelMeterUiAdapter') {
+      throw new Error(`Observation '${binding.id}' has conflicting payloads.`)
     }
     group.params.bindings.push({
       binding_id: observationBindingIds.get(binding.id)!,
@@ -908,7 +981,7 @@ export function compileLaunchApplication(
     const outputAddress: Address = { system_id: 10, instance_id: nextInstance++ }
     generated.push({
       name: adapter.module_id,
-      module_class: 'MusicRaTLevelMeterUiAdapter',
+      module_class: adapter.module_class,
       musicrat_generated: 'observation_adapter',
       outputs: [outputAddress],
       inputs: [{

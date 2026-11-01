@@ -12,6 +12,7 @@ const implementationModuleClasses = new Set([
   'MusicRaTNullSink',
   'MusicRaTParameterSource',
   'MusicRaTParameterStateUiAdapter',
+  'MusicRaTPlaybackStatusUiAdapter',
   'MusicRaTTelemetrySink',
   'MusicRaTTransportSource',
   'MusicRaTWidgetUpdateMerger',

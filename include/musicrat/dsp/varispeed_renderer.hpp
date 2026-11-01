@@ -52,6 +52,42 @@ public:
         media_position_ = std::max(0.0, media_position);
         pending_discontinuity_ = true;
         loop_enabled_ = false;
+        const bool cue_seek_landed = cue_seek_in_flight_ && cue_set_
+            && media_position_ == static_cast<double>(cue_frame_);
+        cue_seek_in_flight_ = false;
+        cue_seek_requested_ = false;
+        if (cue_seek_landed) {
+            // A held preview that was waiting for the cue seek starts from the cue now.
+            playing_ = cue_preview_active_ && cue_button_held_;
+            if (!cue_button_held_) cue_preview_active_ = false;
+            return;
+        }
+        cue_preview_active_ = false;
+        cue_button_held_ = false;
+        cue_hold_pending_ = false;
+    }
+
+    // Returns a cue-frame decoder seek needed because the cue chunk is no longer resident.
+    [[nodiscard]] bool take_seek_request(uint64_t& media_frame) noexcept {
+        if (!cue_seek_requested_) return false;
+        cue_seek_requested_ = false;
+        media_frame = cue_frame_;
+        return true;
+    }
+
+    void clear_track_controls() noexcept {
+        cue_frame_ = 0;
+        cue_set_ = false;
+        loop_start_frame_ = 0;
+        loop_end_frame_ = 0;
+        loop_start_set_ = false;
+        loop_end_set_ = false;
+        loop_enabled_ = false;
+        cue_preview_active_ = false;
+        cue_button_held_ = false;
+        cue_hold_pending_ = false;
+        cue_seek_requested_ = false;
+        cue_seek_in_flight_ = false;
     }
 
     [[nodiscard]] bool set_rate_immediate(double rate) noexcept {
@@ -103,6 +139,13 @@ public:
 
     [[nodiscard]] bool loop_enabled() const noexcept {
         return loop_enabled_;
+    }
+
+    [[nodiscard]] CommRaT::Messages::DeckMarkerState markers() const noexcept {
+        return {.cue_frame = cue_frame_, .loop_start_frame = loop_start_frame_,
+            .loop_end_frame = loop_end_frame_, .cue_set = cue_set_,
+            .loop_start_set = loop_start_set_, .loop_end_set = loop_end_set_,
+            .loop_enabled = loop_enabled_};
     }
 
     [[nodiscard]] uint64_t generation() const noexcept {
@@ -322,21 +365,67 @@ private:
         case CommRaT::Messages::DECK_CONTROL_CLEAR_CUE:
             cue_set_ = false;
             break;
+        case CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN:
+            if (playing_) {
+                if (cue_set_) {
+                    playing_ = false;
+                    cue_preview_active_ = false;
+                    cue_button_held_ = true;
+                    cue_hold_pending_ = true;
+                    return_to_cue(chunks, output);
+                }
+            } else if (cue_seek_in_flight_) {
+                // The visible position is stale until the pending cue seek lands.
+                cue_button_held_ = true;
+                cue_hold_pending_ = false;
+                cue_preview_active_ = true;
+            } else if (valid_frame_position(std::round(media_position_))) {
+                const auto requested_frame = static_cast<uint64_t>(std::round(media_position_));
+                cue_button_held_ = true;
+                cue_hold_pending_ = false;
+                if (cue_set_ && requested_frame == cue_frame_) {
+                    cue_preview_active_ = true;
+                    playing_ = true;
+                } else {
+                    cue_frame_ = requested_frame;
+                    cue_set_ = true;
+                }
+            }
+            break;
+        case CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_HOLD:
+            if (cue_button_held_ && cue_hold_pending_ && cue_set_) {
+                cue_preview_active_ = true;
+                cue_hold_pending_ = false;
+                playing_ = !cue_seek_in_flight_;
+            }
+            break;
+        case CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP:
+            cue_button_held_ = false;
+            cue_hold_pending_ = false;
+            if (cue_preview_active_) {
+                playing_ = false;
+                cue_preview_active_ = false;
+                if (cue_set_ && !cue_seek_in_flight_) return_to_cue(chunks, output);
+            }
+            break;
         case CommRaT::Messages::DECK_CONTROL_SET_LOOP_START:
             if (valid_frame_position(control.value)) {
                 loop_start_frame_ = static_cast<uint64_t>(control.value);
+                loop_start_set_ = true;
                 loop_enabled_ = false;
             }
             break;
         case CommRaT::Messages::DECK_CONTROL_SET_LOOP_END:
             if (valid_frame_position(control.value)) {
                 loop_end_frame_ = static_cast<uint64_t>(control.value);
+                loop_end_set_ = true;
                 loop_enabled_ = false;
             }
             break;
         case CommRaT::Messages::DECK_CONTROL_ENABLE_LOOP:
             loop_enabled_ = loop_start_frame_ < loop_end_frame_
                 && range_is_resident(loop_start_frame_, loop_end_frame_, chunks);
+            if (loop_enabled_) loop_start_set_ = true;
             break;
         case CommRaT::Messages::DECK_CONTROL_DISABLE_LOOP:
             loop_enabled_ = false;
@@ -344,6 +433,20 @@ private:
         default:
             break;
         }
+    }
+
+    void return_to_cue(
+        std::span<const DecodedAudioChunkView> chunks,
+        AudioBlock& output) noexcept {
+        if (find_chunk(chunks, cue_frame_) != nullptr) {
+            media_position_ = static_cast<double>(cue_frame_);
+            pending_discontinuity_ = true;
+            output.flags |= CommRaT::Messages::AUDIO_BLOCK_DISCONTINUITY;
+            return;
+        }
+        // Decode-ahead released the cue audio; the in-band worker reseeks to it.
+        cue_seek_requested_ = true;
+        cue_seek_in_flight_ = true;
     }
 
     static bool valid_frame_position(double value) noexcept {
@@ -548,6 +651,13 @@ private:
     bool playing_{true};
     bool pending_discontinuity_{true};
     bool cue_set_{false};
+    bool cue_preview_active_{false};
+    bool cue_button_held_{false};
+    bool cue_hold_pending_{false};
+    bool cue_seek_requested_{false};
+    bool cue_seek_in_flight_{false};
+    bool loop_start_set_{false};
+    bool loop_end_set_{false};
     bool loop_enabled_{false};
 };
 

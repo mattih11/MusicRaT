@@ -14,6 +14,7 @@ describe('module picker model', () => {
       'MusicRaTDeckControlSource',
       'MusicRaTTransportSource',
       'MusicRaTNullSink',
+      'MusicRaTPlaybackStatusUiAdapter',
     ]
     const internals = internalClasses.map((module_class) => ({
       ...demoDescriptors[0],

@@ -3,6 +3,34 @@
   "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
   "configurePresets": [
     {
+      "name": "native-validation",
+      "displayName": "Native MusicRaT validation",
+      "description": "Build native modules and tests using the installed dependency stack.",
+      "binaryDir": "${sourceDir}/build-validation",
+      "cacheVariables": {
+        "BUILD_MUSICRAT": "ON",
+        "BUILD_MUSICXML": "OFF",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "native-lvgl-validation",
+      "displayName": "Native LVGL validation",
+      "description": "Native validation using the LVGL source/backend selections in the build-lvgl-validation cache.",
+      "inherits": "native-validation",
+      "binaryDir": "${sourceDir}/build-lvgl-validation"
+    },
+    {
+      "name": "native-lvgl-sdl-validation",
+      "displayName": "Native LVGL SDL validation",
+      "description": "Native LVGL validation with an SDL window; configure the LVGL source in this cache.",
+      "inherits": "native-validation",
+      "binaryDir": "${sourceDir}/build-lvgl-sdl-validation",
+      "cacheVariables": {
+        "MUSICRAT_LVGL_ENABLE_SDL": "ON"
+      }
+    },
+    {
       "name": "evl-base",
       "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
@@ -34,10 +62,28 @@
     }
   ],
   "buildPresets": [
+    { "name": "native-validation", "configurePreset": "native-validation", "jobs": 2 },
+    { "name": "native-lvgl-validation", "configurePreset": "native-lvgl-validation", "jobs": 2 },
+    { "name": "native-lvgl-sdl-validation", "configurePreset": "native-lvgl-sdl-validation", "jobs": 2 },
     { "name": "evl", "configurePreset": "evl" },
     { "name": "evl-cross", "configurePreset": "evl-cross" }
   ],
   "testPresets": [
+    {
+      "name": "native-validation",
+      "configurePreset": "native-validation",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "native-lvgl-validation",
+      "configurePreset": "native-lvgl-validation",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "native-lvgl-sdl-validation",
+      "configurePreset": "native-lvgl-sdl-validation",
+      "output": { "outputOnFailure": true }
+    },
     {
       "name": "evl",
       "configurePreset": "evl",

@@ -109,6 +109,7 @@ int main() {
     assert(status.decode_error == CommRaT::Messages::PLAYBACK_DECODE_ERROR_NONE);
     assert(status.algorithmic_latency_frames == 0);
     assert(status.pitch_mode == CommRaT::Messages::PLAYBACK_PITCH_MODE_VARISPEED);
+    assert(status.beat_grid_track_instance_id == 0 && status.track_bpm == 0 && status.current_bpm == 0);
     assert((status.flags & CommRaT::Messages::PLAYBACK_STATUS_READY) != 0);
     assert((status.flags & CommRaT::Messages::PLAYBACK_STATUS_PLAYING) != 0);
     assert((status.flags & CommRaT::Messages::PLAYBACK_STATUS_DISCONTINUITY) != 0);
@@ -118,7 +119,8 @@ int main() {
     config.params = rfl::json::read<rfl::Generic>(
         "{\"path\":\"" + path.string()
         + "\",\"output_sample_rate_hz\":48000.0,"
-          "\"initial_rate\":1.0,\"autoplay\":true,\"pitch_lock\":true}").value();
+          "\"initial_rate\":1.0,\"autoplay\":true,\"pitch_lock\":true,"
+          "\"beat_grid\":{\"sample_rate_hz\":48000,\"segments\":[{\"tempo_bpm\":128}]}}").value();
     player = std::make_unique<TestAudioFilePlayer>(config);
     status = {};
     player->on_start();
@@ -127,7 +129,8 @@ int main() {
     for (uint32_t attempt = 0; attempt < 10000; ++attempt) {
         player->process(controls, transport, *output, status);
         if (status.generation > 0
-            && status.pitch_mode == CommRaT::Messages::PLAYBACK_PITCH_MODE_LOCKED) {
+            && status.pitch_mode == CommRaT::Messages::PLAYBACK_PITCH_MODE_LOCKED
+            && status.current_bpm > 0) {
             published_pitch_lock = true;
             break;
         }
@@ -138,6 +141,8 @@ int main() {
     assert(status.algorithmic_latency_frames > 0);
     assert(status.minimum_playback_rate == 0.5);
     assert(status.maximum_playback_rate == 2.0);
+    assert(status.beat_grid_track_instance_id == status.track_instance_id
+        && near(status.track_bpm, 128) && near(status.current_bpm, 128));
 #endif
     std::filesystem::remove(path);
 }

@@ -565,7 +565,10 @@ validation.
 MusicRaT descriptor metadata declares stable physical ports, virtual parameter
 targets, and known audio endpoint format values. Launcher preflight validates
 port IDs, positions, domains, cardinality, and parameter schemas before audio
-format propagation. The audio validator resolves fixed values and parameter-backed defaults or
+format propagation. A `Remote<T>` is always a command-domain port, even when
+`T` is an audio payload identifying the producer's command endpoint. Payload-domain
+checks apply to streaming ports, not command-only remotes.
+The audio validator resolves fixed values and parameter-backed defaults or
 instance overrides, then rejects direct audio routes with incompatible sample
 rates, channel counts, compile-time capacities, or explicitly declared clock
 domains. Modules that preserve audio format declare explicit input-to-output

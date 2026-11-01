@@ -378,6 +378,15 @@ switches are not LVGL input devices: their platform adapters emit semantic
 control events through the hardware endpoint and binding model independently of
 the display renderer.
 
+Playback feedback now uses the same validated target catalog in Graph and UI
+selectors. An audio file player's elapsed/remaining time connects to a text
+widget, normalized position/rate to a continuous display, ready/playing/looping
+to a toggle/button, and worker/error codes to a choice widget. Strict export
+generates `MusicRaTPlaybackStatusUiAdapter` and reuses widget-update mergers for
+multiple sources on one display. Unavailable playback values disable their
+widgets rather than displaying a fabricated time; valid updates restore them.
+This is the first deck-state presentation slice, not a waveform or browser.
+
 The Application Designer projects each LVGL keyboard widget into the unified Graph
 routing canvas as a connectable note source. These nodes are views of the
 surface widgets, not additional launchable modules. Note cables and the UI

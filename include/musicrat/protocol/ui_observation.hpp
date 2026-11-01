@@ -21,6 +21,7 @@ inline constexpr WidgetValueKind WIDGET_VALUE_CONTINUOUS = 0;
 inline constexpr WidgetValueKind WIDGET_VALUE_BOOLEAN = 1;
 inline constexpr WidgetValueKind WIDGET_VALUE_CHOICE = 2;
 inline constexpr WidgetValueKind WIDGET_VALUE_TEXT = 3;
+inline constexpr WidgetValueKind WIDGET_VALUE_UNAVAILABLE = 4;
 
 struct WidgetUpdate {
     ControlBindingId binding_id{INVALID_CONTROL_BINDING_ID};

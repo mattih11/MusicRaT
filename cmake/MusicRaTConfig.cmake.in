@@ -5,6 +5,7 @@ include(CMakeFindDependencyMacro)
 find_dependency(CoreRaT REQUIRED)
 find_dependency(CommRaT REQUIRED)
 find_dependency(SeRTial REQUIRED)
+find_dependency(Threads REQUIRED)
 
 if(@MUSICRAT_HAS_FLAC@ OR @MUSICRAT_HAS_MP3@ OR @MUSICRAT_HAS_AAC@
         OR @MUSICRAT_HAS_OPUS@ OR "@MUSICRAT_AUDIO_BACKEND@" STREQUAL "PIPEWIRE")

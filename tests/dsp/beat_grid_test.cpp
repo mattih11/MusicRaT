@@ -48,4 +48,5 @@ int main() {
 
     grid.segments[1].start_beat = 5.0;
     assert(!musicrat::dsp::BeatGridMapper{grid}.valid());
+    assert(mapper.grid().segments[1].start_beat == 4.0 && mapper.valid());
 }

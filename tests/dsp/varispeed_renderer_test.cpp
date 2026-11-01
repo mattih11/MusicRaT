@@ -168,6 +168,9 @@ int main() {
     result = renderer.render(
         loop_chunk, 48000.0, 10, 7000, 16, output, &loop_controls);
     assert(renderer.loop_enabled());
+    assert((renderer.markers() == CommRaT::Messages::DeckMarkerState{
+        .cue_frame = 3, .loop_start_frame = 2, .loop_end_frame = 8,
+        .cue_set = true, .loop_start_set = true, .loop_end_set = true, .loop_enabled = true}));
     assert(near(renderer.retention_floor(), 2.0));
     assert(near(result.media_position, 4.0));
     assert(output.flags & CommRaT::Messages::AUDIO_BLOCK_DISCONTINUITY);
@@ -208,4 +211,149 @@ int main() {
     renderer.render(
         loop_chunk, 48000.0, 1, 9000, 18, output, &invalid_loop_controls);
     assert(!renderer.loop_enabled());
+    assert(renderer.markers().cue_set && renderer.markers().cue_frame == 3);
+    assert(renderer.markers().loop_start_set && renderer.markers().loop_end_set);
+    assert(renderer.markers().loop_end_frame == 12 && !renderer.markers().loop_enabled);
+    renderer.clear_track_controls();
+    assert(renderer.markers() == CommRaT::Messages::DeckMarkerState{});
+    renderer.set_playing(false);
+    CommRaT::Messages::DeckControlEventBlock partial{};
+    partial.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_SET_CUE, .value = 0});
+    partial.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_SET_LOOP_END, .value = 8});
+    renderer.render(loop_chunk, 48000, 1, 10000, 19, output, &partial);
+    assert(renderer.markers().cue_set && renderer.markers().cue_frame == 0);
+    assert(!renderer.markers().loop_start_set && renderer.markers().loop_end_set);
+    partial.events.clear();
+    partial.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_ENABLE_LOOP});
+    renderer.render(loop_chunk, 48000, 1, 10000, 20, output, &partial);
+    assert(renderer.markers().loop_start_set && renderer.markers().loop_enabled);
+    partial.events.clear();
+    partial.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CLEAR_CUE});
+    partial.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_DISABLE_LOOP});
+    renderer.render(loop_chunk, 48000, 1, 10000, 21, output, &partial);
+    assert(!renderer.markers().cue_set && !renderer.markers().loop_enabled);
+    assert(renderer.markers().loop_start_set && renderer.markers().loop_end_set);
+
+    renderer.clear_track_controls();
+    renderer.prepare(9, 3.0);
+    renderer.set_playing(false);
+    CommRaT::Messages::DeckControlEventBlock cue_button{};
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(loop_chunk, 48000, 1, 11000, 22, output, &cue_button);
+    assert(!renderer.playing() && renderer.markers().cue_set && renderer.markers().cue_frame == 3);
+
+    renderer.prepare(9, 6.0);
+    renderer.set_playing(true);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(loop_chunk, 48000, 1, 12000, 23, output, &cue_button);
+    assert(!renderer.playing() && renderer.media_position() == 3.0);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_HOLD});
+    renderer.render(loop_chunk, 48000, 1, 12500, 24, output, &cue_button);
+    assert(renderer.playing() && renderer.media_position() == 4.0);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP});
+    renderer.render(loop_chunk, 48000, 1, 12750, 25, output, &cue_button);
+    assert(!renderer.playing() && renderer.media_position() == 3.0);
+
+    renderer.prepare(9, 3.0);
+    renderer.set_playing(false);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(loop_chunk, 48000, 2, 13000, 26, output, &cue_button);
+    assert(renderer.playing() && renderer.media_position() == 5.0);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP});
+    renderer.render(loop_chunk, 48000, 1, 14000, 27, output, &cue_button);
+    assert(!renderer.playing() && renderer.media_position() == 3.0);
+
+    renderer.prepare(9, 7.0);
+    renderer.set_playing(false);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(loop_chunk, 48000, 1, 15000, 28, output, &cue_button);
+    assert(!renderer.playing() && renderer.markers().cue_frame == 7);
+
+    // Decode-ahead has released the cue chunk: every cue return must request a reseek.
+    const musicrat::dsp::DecodedAudioChunkView late_chunk{
+        .audio = &loop_source,
+        .start_frame = 100,
+        .generation = 9,
+    };
+    uint64_t seek_frame = 0;
+    assert(!renderer.take_seek_request(seek_frame));
+    renderer.prepare(9, 102.0);
+    renderer.set_playing(true);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(late_chunk, 48000, 1, 16000, 29, output, &cue_button);
+    assert(!renderer.playing());
+    assert(renderer.take_seek_request(seek_frame) && seek_frame == 7);
+    assert(!renderer.take_seek_request(seek_frame));
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP});
+    renderer.render(late_chunk, 48000, 1, 16100, 30, output, &cue_button);
+    assert(!renderer.playing());
+    renderer.prepare(9, 7.0);
+    assert(!renderer.playing() && renderer.media_position() == 7.0);
+
+    // Hold while playing: HOLD before the reseek lands defers preview until the cue is ready.
+    renderer.prepare(9, 102.0);
+    renderer.set_playing(true);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(late_chunk, 48000, 1, 17000, 31, output, &cue_button);
+    assert(renderer.take_seek_request(seek_frame) && seek_frame == 7);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_HOLD});
+    renderer.render(late_chunk, 48000, 1, 17100, 32, output, &cue_button);
+    assert(!renderer.playing());
+    renderer.prepare(9, 7.0);
+    assert(renderer.playing() && renderer.media_position() == 7.0);
+    const musicrat::dsp::DecodedAudioChunkView cue_chunk{
+        .audio = &loop_source,
+        .start_frame = 5,
+        .generation = 9,
+    };
+    renderer.render(cue_chunk, 48000, 2, 17200, 33, output);
+    assert(renderer.playing() && renderer.media_position() == 9.0);
+
+    // Preview played past the resident window: release pauses and reseeks to the cue.
+    const musicrat::dsp::DecodedAudioChunkView later_chunk{
+        .audio = &loop_source,
+        .start_frame = 200,
+        .generation = 9,
+    };
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP});
+    renderer.render(later_chunk, 48000, 1, 17300, 34, output, &cue_button);
+    assert(!renderer.playing());
+    assert(renderer.take_seek_request(seek_frame) && seek_frame == 7);
+    renderer.prepare(9, 7.0);
+    assert(!renderer.playing() && renderer.media_position() == 7.0);
+
+    // Hold while paused at the cue, then release after the cue chunk was evicted.
+    renderer.render(cue_chunk, 48000, 1, 18000, 35, output);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(cue_chunk, 48000, 1, 18100, 36, output, &cue_button);
+    assert(renderer.playing() && renderer.media_position() == 8.0);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_UP});
+    renderer.render(later_chunk, 48000, 1, 18200, 37, output, &cue_button);
+    assert(!renderer.playing());
+    assert(renderer.take_seek_request(seek_frame) && seek_frame == 7);
+    renderer.prepare(9, 7.0);
+    assert(!renderer.playing() && renderer.media_position() == 7.0);
+
+    // An unrelated seek cancels the in-flight cue gesture.
+    renderer.prepare(9, 102.0);
+    renderer.set_playing(true);
+    cue_button.events.clear();
+    cue_button.events.push_back({.type = CommRaT::Messages::DECK_CONTROL_CUE_BUTTON_DOWN});
+    renderer.render(late_chunk, 48000, 1, 19000, 38, output, &cue_button);
+    assert(renderer.take_seek_request(seek_frame));
+    renderer.prepare(9, 50.0);
+    assert(!renderer.playing() && renderer.media_position() == 50.0);
 }

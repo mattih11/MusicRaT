@@ -242,9 +242,11 @@ inline void validate_module_metadata(const commrat::ModuleDescriptor& descriptor
                 && port.domain != PORT_DOMAIN_COMMAND) {
                 invalid("remote ports must use the command domain");
             }
-            if (const auto expected = detail::payload_domain((*ports)->at(port.port_index));
-                expected && port.domain != *expected) {
-                invalid("domain does not match the CommRaT payload type");
+            if (port.direction != PORT_DIRECTION_REMOTE) {
+                if (const auto expected = detail::payload_domain((*ports)->at(port.port_index));
+                    expected && port.domain != *expected) {
+                    invalid("domain does not match the CommRaT payload type");
+                }
             }
         }
     }

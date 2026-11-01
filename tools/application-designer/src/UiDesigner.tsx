@@ -13,7 +13,9 @@ import {
 } from './binding-editor-model'
 import { componentDefinition } from './component-catalog'
 import { keyboardNoteTargets, noteInputTargets, type DesignerModule, type MusicRaTControlProject, type SurfaceWidget } from './model'
-import { actionTargets, observableTargets } from './graph-targets'
+import {
+  actionTargets, observableTargets, widgetAcceptsObservable,
+} from './graph-targets'
 import { uiComponentCatalog, uiComponentDefinition } from './ui-component-catalog'
 import {
   addSurfaceWidget,
@@ -59,7 +61,8 @@ export function UiDesigner({ control, modules, onChange }: UiDesignerProps) {
       && target.action.id === option.target.action_id))
   const feedbackOptions = observableOptions(modules).filter((option) =>
     observableTargets(modules).some((target) => target.module.id === option.reference.module_id
-      && target.observable.id === option.reference.observable_id))
+      && target.observable.id === option.reference.observable_id
+      && selected && widgetAcceptsObservable(selected, target.observable)))
   const noteTargets = noteInputTargets(modules)
   const displayElement = project.deck?.elements.find((element) =>
     surface?.id === `display-${element.id}`)

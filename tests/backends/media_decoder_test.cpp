@@ -17,6 +17,9 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <cmath>
+#include <numbers>
+#include "../support/directory_fixture.hpp"
 
 namespace {
 
@@ -200,6 +203,31 @@ int main() {
     assert(RejectingDecoder::open_attempts == 1);
     assert(fallback.metadata().codec
         == musicrat::backends::media::MediaCodec::PcmWav);
+
+    // MPEG sync patterns in PCM must not win over a valid WAV container.
+    musicrat::testing::TestDirectory fixture;
+    const auto tone_path = fixture.path / "tone.wav";
+    {
+        musicrat::backends::audio::WavWriter writer;
+        assert(writer.open(tone_path.c_str(), 44100, 2));
+        for (uint32_t start = 0; start < 44100;) {
+            source = {};
+            source.sample_rate_hz = 44100;
+            source.channel_count = 2;
+            source.frame_count = std::min<uint32_t>(127, 44100 - start);
+            for (uint32_t frame = 0; frame < source.frame_count; ++frame) {
+                const auto value = static_cast<CommRaT::Messages::AudioBlock::Sample>(
+                    0.6 * std::sin(2 * std::numbers::pi * 60 * (start + frame) / 44100));
+                source.channels[0].push_back(value);
+                source.channels[1].push_back(-value);
+            }
+            assert(writer.write(source));
+            start += source.frame_count;
+        }
+    }
+    assert(decoder.open(tone_path.c_str()));
+    assert(decoder.metadata().codec == musicrat::backends::media::MediaCodec::PcmWav);
+    assert(decoder.metadata().frame_count == 44100 && decoder.metadata().channel_count == 2);
 
     std::filesystem::remove(wav_path);
     std::filesystem::remove(invalid_path);

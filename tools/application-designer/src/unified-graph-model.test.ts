@@ -305,6 +305,28 @@ function addSemanticModule(workspace: DesignerWorkspace): DesignerModule {
 }
 
 describe('unified actions and telemetry', () => {
+  it('connects playback time to text through the shared observable target catalog', () => {
+    const workspace = fixture()
+    const player = addSemanticModule(workspace)
+    player.descriptor.outputs![0] = 'CommRaT::Messages::PlaybackStatusBlock'
+    player.descriptor.descriptor_metadata!.musicrat_observables!.observables = [{
+      id: 'elapsed', display_name: 'Elapsed', group: 'Timeline', output_port_id: 'levels',
+      selector: 'elapsed_time', kind: 'text', unit: '', minimum: 0, maximum: 1,
+      channel_selectable: false,
+    }]
+    workspace.source.musicrat_control = addSurfaceWidget(workspace.source.musicrat_control!,
+      'display-screen', uiComponentDefinition('text')!).control
+    const linked = connect(workspace,
+      (port) => port.socket.kind === 'observable',
+      (port, node) => node.data.widget_id === 'text-1' && port.socket.kind === 'widget-feedback')
+    expect(linked.source.musicrat_control!.observation_bindings![0].target.property).toBe('text')
+    expect(compileLaunchApplication(linked).modules.some((module) =>
+      module.module_class === 'MusicRaTPlaybackStatusUiAdapter')).toBe(true)
+    expect(() => connect(workspace, (port) => port.socket.kind === 'observable',
+      (port, node) => node.data.widget_id === 'meter-1'
+        && port.socket.kind === 'widget-feedback')).toThrow('incompatible')
+  })
+
   it('rejects control connections that would compete with existing telemetry feedback', () => {
     const workspace = fixture()
     addSemanticModule(workspace)

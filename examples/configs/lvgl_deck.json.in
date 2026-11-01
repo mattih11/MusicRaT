@@ -1,0 +1,48 @@
+{
+  "app_name": "MusicRaTDeckWorkflow",
+  "modules": [
+    {
+      "name": "DeckPlayer",
+      "module_class": "MusicRaTAudioFilePlayer",
+      "outputs": [
+        { "system_id": 110, "instance_id": 12 },
+        { "system_id": 111, "instance_id": 12 }
+      ],
+      "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 112, "source_instance_id": 12 }
+      ],
+      "period_ms": 10,
+      "params": {
+        "path": "",
+        "autoplay": true,
+        "protect_playing_loads": true
+      }
+    },
+    {
+      "name": "DeckDisplay",
+      "module_class": "MusicRaTLvglDeck",
+      "outputs": [{ "system_id": 112, "instance_id": 12 }],
+      "inputs": [],
+      "synced_inputs": [
+        { "source_system_id": 111, "source_instance_id": 12 }
+      ],
+      "remotes": [{ "source_system_id": 110, "source_instance_id": 12 }],
+      "period_ms": 10,
+      "params": {
+        "media_root": ".",
+        "backend": @MUSICRAT_DECK_BACKEND@,
+        "load_timeout_ms": 10000
+      }
+    },
+    {
+      "name": "DeckOutput",
+      "module_class": "@MUSICRAT_DECK_SINK_CLASS@",
+      "module_address": { "system_id": 113, "instance_id": 12 },
+      "outputs": [],
+      "inputs": [
+        { "source_system_id": 110, "source_instance_id": 12 }
+      ]
+    }
+  ]
+}

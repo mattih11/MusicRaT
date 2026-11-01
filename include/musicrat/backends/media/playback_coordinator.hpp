@@ -117,6 +117,14 @@ public:
         return renderer_.set_rate_immediate(rate);
     }
 
+    void retire_renderer() noexcept {
+        renderer_.retire();
+    }
+
+    void clear_track_controls() noexcept {
+        renderer_.clear_track_controls();
+    }
+
     [[nodiscard]] bool ramp_rate(double rate, uint32_t render_frames) noexcept {
         return renderer_.ramp_rate(rate, render_frames);
     }
@@ -176,6 +184,14 @@ public:
 
     [[nodiscard]] bool loop_enabled() const noexcept {
         return renderer_.loop_enabled();
+    }
+
+    [[nodiscard]] CommRaT::Messages::DeckMarkerState markers() const noexcept {
+        return renderer_.markers();
+    }
+
+    [[nodiscard]] bool take_seek_request(uint64_t& media_frame) noexcept {
+        return renderer_.take_seek_request(media_frame);
     }
 
     [[nodiscard]] bool pitch_lock_enabled() const noexcept {

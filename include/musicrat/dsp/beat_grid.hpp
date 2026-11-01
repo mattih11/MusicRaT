@@ -30,6 +30,10 @@ public:
         return valid_;
     }
 
+    [[nodiscard]] const BeatGrid& grid() const noexcept {
+        return grid_;
+    }
+
     [[nodiscard]] BeatGridPosition position_at_frame(
         double media_frame) const noexcept {
         if (!valid_ || !std::isfinite(media_frame) || media_frame < 0.0) {

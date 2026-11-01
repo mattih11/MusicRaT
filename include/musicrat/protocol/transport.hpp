@@ -13,6 +13,7 @@ struct BeatGridSegment {
     uint64_t start_frame{0};
     double start_beat{0.0};
     double tempo_bpm{120.0};
+    bool operator==(const BeatGridSegment&) const = default;
 };
 
 struct BeatGrid {
@@ -22,6 +23,12 @@ struct BeatGrid {
     uint16_t beat_unit{4};
     uint16_t confidence_per_mille{0};
     uint16_t flags{0};
+    bool operator==(const BeatGrid&) const = default;
+};
+
+enum BeatGridFlag : uint16_t {
+    BEAT_GRID_FLAG_ANALYZED = 1U << 0U,
+    BEAT_GRID_FLAG_IMPORTED = 1U << 1U,
 };
 
 using TransportState = uint8_t;

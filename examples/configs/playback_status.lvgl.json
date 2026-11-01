@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "config_fingerprint": "example:playback-status",
+  "displays": [{
+    "instance_id": "deck-display",
+    "surface_id": "deck",
+    "widgets": [
+      {
+        "id": "elapsed",
+        "kind": "text",
+        "display_name": "Elapsed",
+        "layout": { "x": 5, "y": 10, "width": 40, "height": 20 },
+        "route": "feedback"
+      },
+      {
+        "id": "remaining",
+        "kind": "text",
+        "display_name": "Remaining",
+        "layout": { "x": 55, "y": 10, "width": 40, "height": 20 },
+        "route": "feedback"
+      },
+      {
+        "id": "position",
+        "kind": "slider",
+        "display_name": "Position",
+        "layout": { "x": 5, "y": 40, "width": 90, "height": 15 },
+        "route": "feedback"
+      },
+      {
+        "id": "playing",
+        "kind": "toggle",
+        "display_name": "Playing",
+        "layout": { "x": 5, "y": 60, "width": 25, "height": 15 },
+        "route": "feedback"
+      },
+      {
+        "id": "worker-state",
+        "kind": "choice",
+        "display_name": "Player State",
+        "layout": { "x": 40, "y": 60, "width": 55, "height": 15 },
+        "route": "feedback",
+        "choices": [
+          { "value": 0, "label": "Closed" },
+          { "value": 1, "label": "Preparing" },
+          { "value": 2, "label": "Ready" },
+          { "value": 3, "label": "End of stream" },
+          { "value": 4, "label": "Error" }
+        ]
+      },
+      {
+        "id": "load-state",
+        "kind": "choice",
+        "display_name": "Load Result",
+        "layout": { "x": 5, "y": 80, "width": 90, "height": 15 },
+        "route": "feedback",
+        "choices": [
+          { "value": 0, "label": "No load requested" },
+          { "value": 1, "label": "Preparing track" },
+          { "value": 2, "label": "Prepared; awaiting deck" },
+          { "value": 3, "label": "Track committed" },
+          { "value": 4, "label": "Load failed; no replacement" },
+          { "value": 5, "label": "Playing deck protected" },
+          { "value": 6, "label": "Load cancelled" }
+        ]
+      }
+    ]
+  }]
+}

@@ -1,4 +1,5 @@
 #include <musicrat/backends/lvgl_widget_renderer.hpp>
+#include <musicrat/dsp/playback_status_ui_adapter.hpp>
 
 #include <rfl/json.hpp>
 
@@ -266,6 +267,55 @@ int main() {
     assert(lv_arc_get_value(knob) == 100);
     assert(lv_obj_has_state(button, LV_STATE_PRESSED));
     assert(lv_dropdown_get_selected(choice) == 1);
+
+    WidgetUpdateBlock unavailable{};
+    unavailable.events.push_back({
+        .surface_id = "main", .widget_id = "status",
+        .property = WIDGET_PROPERTY_TEXT, .kind = WIDGET_VALUE_UNAVAILABLE,
+        .text = "--:--.---",
+    });
+    unavailable.events.push_back({
+        .surface_id = "main", .widget_id = "meter",
+        .kind = WIDGET_VALUE_UNAVAILABLE,
+    });
+    assert(renderer.apply(unavailable).applied_count == 2);
+    assert(lv_obj_has_state(text, LV_STATE_DISABLED));
+    assert(lv_obj_has_state(meter, LV_STATE_DISABLED));
+    assert(std::string_view{lv_label_get_text(text)} == "--:--.---");
+    (void)renderer.apply(block);
+    assert(!lv_obj_has_state(text, LV_STATE_DISABLED));
+    assert(!lv_obj_has_state(meter, LV_STATE_DISABLED));
+    assert(std::string_view{lv_label_get_text(text)} == "Ready");
+
+    musicrat::dsp::PlaybackStatusUiAdapter playback_adapter{};
+    const std::array playback_bindings{
+        CommRaT::Parameters::CompiledPlaybackObservationBinding{
+            .binding_id = 1, .surface_id = "main", .widget_id = "status",
+            .property = WIDGET_PROPERTY_TEXT,
+            .selector = CommRaT::Parameters::PLAYBACK_OBSERVE_ELAPSED_TIME},
+        CommRaT::Parameters::CompiledPlaybackObservationBinding{
+            .binding_id = 2, .surface_id = "main", .widget_id = "meter",
+            .selector = CommRaT::Parameters::PLAYBACK_OBSERVE_POSITION},
+    };
+    assert(playback_adapter.configure(playback_bindings)
+        == musicrat::dsp::PlaybackStatusUiAdapterConfigError::None);
+    PlaybackStatusBlock playback{};
+    playback.source_sample_rate_hz = 48000;
+    playback.media_position_frames = 48000;
+    playback.duration_frames = 96000;
+    WidgetUpdateBlock playback_updates{};
+    (void)playback_adapter.process(playback, playback_updates);
+    assert(renderer.apply(playback_updates).applied_count == 2);
+    assert(std::string_view{lv_label_get_text(text)} == "00:01.000");
+    assert(lv_bar_get_value(meter) == 50);
+    playback.source_sample_rate_hz = 0;
+    playback.duration_frames = 0;
+    (void)playback_adapter.process(playback, playback_updates);
+    assert(renderer.apply(playback_updates).applied_count == 2);
+    assert(std::string_view{lv_label_get_text(text)} == "--:--.---");
+    assert(lv_obj_has_state(text, LV_STATE_DISABLED));
+    assert(lv_obj_has_state(meter, LV_STATE_DISABLED));
+    (void)renderer.apply(block);
 
     interaction = {};
     lv_slider_set_value(slider, 65, LV_ANIM_OFF);

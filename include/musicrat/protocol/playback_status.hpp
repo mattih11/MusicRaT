@@ -1,6 +1,8 @@
 #pragma once
 
 #include <musicrat/protocol/transport.hpp>
+#include <musicrat/protocol/media_load.hpp>
+#include <musicrat/protocol/deck_control.hpp>
 
 #include <cstdint>
 
@@ -84,6 +86,16 @@ struct PlaybackStatusBlock {
     PlaybackPitchMode pitch_mode{PLAYBACK_PITCH_MODE_VARISPEED};
     TransportSyncMode transport_sync_mode{TRANSPORT_SYNC_OFF};
     uint16_t flags{0};
+    uint64_t track_instance_id{0};
+    uint64_t load_request_id{0};
+    MediaLoadState load_state{MEDIA_LOAD_IDLE};
+    PlaybackDecodeError load_decode_error{PLAYBACK_DECODE_ERROR_NONE};
+    uint64_t beat_grid_track_instance_id{0};
+    double track_bpm{0.0};
+    double current_bpm{0.0};
+    uint64_t marker_track_instance_id{0};
+    DeckMarkerState markers{};
+    BeatGrid beat_grid{};
 };
 
 } // namespace CommRaT::Messages

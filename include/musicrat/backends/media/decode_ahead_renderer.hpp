@@ -58,6 +58,14 @@ public:
     DecodeAheadRenderer(const DecodeAheadRenderer&) = delete;
     DecodeAheadRenderer& operator=(const DecodeAheadRenderer&) = delete;
 
+    void retire() noexcept {
+        release_all();
+    }
+
+    void clear_track_controls() noexcept {
+        renderer_.clear_track_controls();
+    }
+
     void prepare(
         uint64_t generation,
         double media_position = 0.0,
@@ -202,6 +210,14 @@ public:
 
     [[nodiscard]] bool loop_enabled() const noexcept {
         return renderer_.loop_enabled();
+    }
+
+    [[nodiscard]] CommRaT::Messages::DeckMarkerState markers() const noexcept {
+        return renderer_.markers();
+    }
+
+    [[nodiscard]] bool take_seek_request(uint64_t& media_frame) noexcept {
+        return renderer_.take_seek_request(media_frame);
     }
 
         [[nodiscard]] bool pitch_lock_enabled() const noexcept {

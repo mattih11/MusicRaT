@@ -165,6 +165,18 @@ int main() {
 
     validate_module_metadata(note_consumer(valid_ports()));
 
+    auto remote_ports = valid_ports();
+    remote_ports.ports.push_back({
+        .id = "player", .display_name = "Player Commands", .direction = PORT_DIRECTION_REMOTE,
+        .port_index = 0, .domain = PORT_DOMAIN_COMMAND,
+    });
+    auto with_remote = note_consumer(remote_ports);
+    with_remote.remotes = std::vector<std::string>{"CommRaT::Messages::AudioBlock"};
+    validate_module_metadata(with_remote);
+    remote_ports.ports.back().domain = PORT_DOMAIN_AUDIO;
+    auto invalid_remote = note_consumer(remote_ports);
+    invalid_remote.remotes = with_remote.remotes;
+    assert(rejects([&] { validate_module_metadata(invalid_remote); }));
     auto wrong_note_domain = valid_ports();
     wrong_note_domain.ports[1].domain = PORT_DOMAIN_CONTROL;
     assert(rejects([&] {

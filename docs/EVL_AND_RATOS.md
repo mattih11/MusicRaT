@@ -85,6 +85,15 @@ Run on the standard Linux backend for every change:
 
 These tests are fast and deterministic, but they do not prove EVL ABI compatibility or real-time scheduling behavior.
 
+The `native-validation` configure/build/test preset enables the native modules
+and tests in `build-validation`. Select **Native MusicRaT validation** as the
+configure preset in VS Code CMake Tools. It uses the installed dependency stack
+and retains existing optional-backend/cache selections. LVGL tests additionally
+require `MUSICRAT_LVGL_SOURCE_DIR` to point to a compatible LVGL source tree.
+The **Native LVGL validation** preset uses the separate `build-lvgl-validation`
+cache, preserving its configured LVGL source and backend choices. Configure the
+LVGL source path in that cache before using the preset on a new checkout.
+
 ### 2. EVL Cross-Build
 
 MusicRaT provides an `evl-cross` preset using the same RaTOS SDK toolchain as

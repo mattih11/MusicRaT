@@ -39,12 +39,12 @@ struct MakeDecoderDispatcher<DecoderList<Backends...>> {
     using type = DecoderDispatcher<Backends...>;
 };
 
-using WavDecoderList = DecoderList<WavReader>;
+using BaseDecoderList = DecoderList<>;
 
 #if MUSICRAT_HAS_MP3
-using Mp3DecoderList = typename PrependDecoder<Mp3Reader, WavDecoderList>::type;
+using Mp3DecoderList = typename PrependDecoder<Mp3Reader, BaseDecoderList>::type;
 #else
-using Mp3DecoderList = WavDecoderList;
+using Mp3DecoderList = BaseDecoderList;
 #endif
 
 #if MUSICRAT_HAS_OPUS
@@ -68,7 +68,7 @@ using MediaDecoderList = AacDecoderList;
 } // namespace detail
 
 using MediaDecoder = typename detail::MakeDecoderDispatcher<
-    detail::MediaDecoderList>::type;
+    typename detail::PrependDecoder<WavReader, detail::MediaDecoderList>::type>::type;
 
 static_assert(DecoderBackend<MediaDecoder>);
 

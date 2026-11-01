@@ -2,6 +2,7 @@
 
 #include <musicrat/config.hpp>
 #include <musicrat/protocol/transport.hpp>
+#include <musicrat/protocol/media_load.hpp>
 
 #include <sertial/containers/fixed_string.hpp>
 
@@ -14,6 +15,8 @@ struct LoadMedia {
 
     struct Reply {
         bool accepted{false};
+        uint64_t request_id{0};
+        MediaLoadRejection rejection{MEDIA_LOAD_REJECTION_NONE};
     };
 };
 
@@ -42,6 +45,7 @@ inline constexpr uint32_t FILE_PLAYER_AUTOPLAY_PARAMETER_ID = 4;
 inline constexpr uint32_t FILE_PLAYER_PITCH_LOCK_PARAMETER_ID = 5;
 inline constexpr uint32_t FILE_PLAYER_TRANSPORT_SYNC_MODE_PARAMETER_ID = 6;
 inline constexpr uint32_t FILE_PLAYER_SYNC_RATE_RAMP_PARAMETER_ID = 7;
+inline constexpr uint32_t FILE_PLAYER_PROTECT_PLAYING_LOADS_PARAMETER_ID = 8;
 
 struct FilePlayer {
     sertial::fixed_string<512> path{};
@@ -53,6 +57,7 @@ struct FilePlayer {
     CommRaT::Messages::TransportSyncMode transport_sync_mode{
         CommRaT::Messages::TRANSPORT_SYNC_OFF};
     uint32_t sync_rate_ramp_frames{480};
+    bool protect_playing_loads{true};
 };
 
 } // namespace CommRaT::Parameters

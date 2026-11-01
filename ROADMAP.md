@@ -6,6 +6,7 @@ The normative signal, port, timing, launcher, and GUI contract is documented in 
 File placement, dependency layers, naming, and CMake ownership are documented in [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md).
 EVL portability, RaTOS packaging, and the layered real-time validation strategy are documented in [`docs/EVL_AND_RATOS.md`](docs/EVL_AND_RATOS.md).
 Media decoding, performance playback, recording, and live-device boundaries are documented in [`docs/MEDIA_PLAYBACK.md`](docs/MEDIA_PLAYBACK.md).
+The proposed CDJ/XDJ-style LVGL player, waveform/library services, and performance-deck milestones are outlined in [`docs/DECK_PLAYER_IMPLEMENTATION_PLAN.md`](docs/DECK_PLAYER_IMPLEMENTATION_PLAN.md).
 
 ## Status
 

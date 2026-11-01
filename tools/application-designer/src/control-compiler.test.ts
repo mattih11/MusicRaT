@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { compileControlPlan, compileLaunchApplication } from './control-compiler'
 import { demoApplication, demoDescriptors } from './demo'
 import { importApplication, type MusicRaTControlProject } from './model'
+import { observableTargets } from './graph-targets'
 
 function workspaceWithControl(control: MusicRaTControlProject) {
   const workspace = importApplication(
@@ -62,6 +63,104 @@ const control: MusicRaTControlProject = {
 }
 
 describe('control launch compiler', () => {
+  it('exports playback time, position and play state through the existing LVGL observation path', () => {
+    const deckControl = structuredClone(control)
+    deckControl.bindings = []
+    deckControl.deck = {
+      schema_version: 1,
+      panel: { width_mm: 160, height_mm: 90, thickness_mm: 3 },
+      elements: [{
+        id: 'screen', component_id: 'touch-display-5in', display_name: 'Deck',
+        position: { x_mm: 0, y_mm: 0 },
+      }],
+    }
+    deckControl.surfaces = [{
+      id: 'display-screen', display_name: 'Deck', target: 'lvgl', endpoints: [],
+      widgets: [{
+        id: 'elapsed', kind: 'text', display_name: 'Elapsed',
+        layout: { x: 0, y: 0, width: 40, height: 20 }, route: 'feedback',
+      }, {
+        id: 'position', kind: 'meter', display_name: 'Position',
+        layout: { x: 0, y: 20, width: 40, height: 20 }, route: 'feedback',
+      }, {
+        id: 'playing', kind: 'toggle', display_name: 'Playing',
+        layout: { x: 0, y: 40, width: 40, height: 20 }, route: 'feedback',
+      }],
+    }]
+    deckControl.observation_bindings = [
+      { id: 'elapsed', source: { module_id: 'Deck', observable_id: 'elapsed' },
+        target: { surface_id: 'display-screen', widget_id: 'elapsed', property: 'text' } },
+      { id: 'position', source: { module_id: 'Deck', observable_id: 'position' },
+        target: { surface_id: 'display-screen', widget_id: 'position', property: 'value' } },
+      { id: 'playing', source: { module_id: 'Deck', observable_id: 'playing' },
+        target: { surface_id: 'display-screen', widget_id: 'playing', property: 'active' } },
+    ]
+    const workspace = workspaceWithControl(deckControl)
+    workspace.modules.push({
+      id: 'Deck',
+      descriptor: {
+        module_class: 'MusicRaTAudioFilePlayer', binary: '',
+        outputs: ['CommRaT::Messages::AudioBlock', 'CommRaT::Messages::PlaybackStatusBlock'],
+        descriptor_metadata: {
+          musicrat_ports: { schema_version: 1, ports: [{
+            id: 'playback_status', display_name: 'Status', direction: 'output',
+            port_index: 1, domain: 'telemetry', required: true, max_connections: 1,
+          }] },
+          musicrat_observables: { schema_version: 1, observables: [
+            { id: 'elapsed', display_name: 'Elapsed', group: 'Timeline',
+              output_port_id: 'playback_status', selector: 'elapsed_time',
+              kind: 'text', unit: '', minimum: 0, maximum: 1, channel_selectable: false },
+            { id: 'position', display_name: 'Position', group: 'Timeline',
+              output_port_id: 'playback_status', selector: 'position',
+              kind: 'continuous', unit: '', minimum: 0, maximum: 1, channel_selectable: false },
+            { id: 'playing', display_name: 'Playing', group: 'State',
+              output_port_id: 'playback_status', selector: 'flags.playing',
+              kind: 'boolean', unit: '', minimum: 0, maximum: 1, channel_selectable: false },
+          ] },
+        },
+      },
+      source: {
+        name: 'Deck', module_class: 'MusicRaTAudioFilePlayer',
+        outputs: [{ system_id: 10, instance_id: 20 }, { system_id: 30, instance_id: 20 }],
+      },
+      position: { x: 0, y: 0 },
+    })
+    expect(observableTargets(workspace.modules).filter((item) => item.module.id === 'Deck')).toHaveLength(3)
+    const plan = compileControlPlan(workspace)
+    expect(plan.observation_adapters).toHaveLength(1)
+    expect(plan.observation_adapters[0]).toMatchObject({
+      module_class: 'MusicRaTPlaybackStatusUiAdapter',
+      source_module_id: 'Deck', source_port_id: 'playback_status',
+      params: { bindings: [
+        { selector: 10, property: 2 },
+        { selector: 5, property: 1 },
+        { selector: 9, property: 0, minimum: 0, maximum: 1 },
+      ] },
+    })
+    const launch = compileLaunchApplication(workspace)
+    const adapter = launch.modules.find((item) => item.module_class === 'MusicRaTPlaybackStatusUiAdapter')!
+    const player = launch.modules.find((item) => item.name === 'Deck')!
+    const sink = launch.modules.find((item) => item.module_class === 'MusicRaTLvglWidgetSink')!
+    expect(adapter.inputs).toEqual([{
+      source_system_id: player.outputs![1].system_id,
+      source_instance_id: player.outputs![1].instance_id,
+    }])
+    expect(sink.synced_inputs).toEqual([{
+      source_system_id: adapter.outputs![0].system_id,
+      source_instance_id: adapter.outputs![0].instance_id,
+    }])
+    expect(adapter.params).toEqual(plan.observation_adapters[0].params)
+    expect(launch.modules.indexOf(adapter)).toBeGreaterThan(launch.modules.indexOf(player))
+
+    deckControl.observation_bindings[0].target.property = 'active'
+    expect(() => compileControlPlan(workspace)).toThrow('incompatible')
+    deckControl.observation_bindings[0].target.property = 'text'
+    const positionObservable = workspace.modules.find((item) => item.id === 'Deck')!
+      .descriptor.descriptor_metadata!.musicrat_observables!.observables[1]
+    positionObservable.minimum = 1
+    expect(() => compileControlPlan(workspace)).toThrow('invalid playback range')
+  })
+
   it('emits required empty continuous input arrays for source modules', () => {
     const workspace = importApplication(structuredClone(demoApplication), structuredClone(demoDescriptors))
     const launch = compileLaunchApplication(workspace)
@@ -526,6 +625,7 @@ describe('control launch compiler', () => {
       project_id: 'peak-observation', runtime_id: 1,
     }])
     expect(plan.observation_adapters).toEqual([{
+      module_class: 'MusicRaTLevelMeterUiAdapter',
       module_id: 'LevelMeterUiAdapter_1',
       source_module_id: 'Meter_1',
       source_port_id: 'levels',

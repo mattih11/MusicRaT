@@ -1,0 +1,72 @@
+{
+  "app_name": "MusicRaTPlaybackStatusToLvgl",
+  "modules": [
+    {
+      "name": "AudioFilePlayer_1",
+      "module_class": "MusicRaTAudioFilePlayer",
+      "outputs": [
+        { "system_id": 10, "instance_id": 4 },
+        { "system_id": 30, "instance_id": 4 }
+      ],
+      "inputs": [],
+      "period_ms": 10,
+      "params": {
+        "path": "",
+        "output_sample_rate_hz": 48000.0,
+        "initial_rate": 1.0,
+        "autoplay": true
+      }
+    },
+    {
+      "name": "PlaybackStatusUiAdapter_1",
+      "module_class": "MusicRaTPlaybackStatusUiAdapter",
+      "outputs": [{ "system_id": 50, "instance_id": 4 }],
+      "inputs": [{ "source_system_id": 30, "source_instance_id": 4 }],
+      "params": {
+        "bindings": [
+          { "binding_id": 1, "surface_id": "deck", "widget_id": "elapsed",
+            "property": 2, "selector": 10 },
+          { "binding_id": 2, "surface_id": "deck", "widget_id": "remaining",
+            "property": 2, "selector": 11 },
+          { "binding_id": 3, "surface_id": "deck", "widget_id": "position",
+            "property": 0, "selector": 9 },
+          { "binding_id": 4, "surface_id": "deck", "widget_id": "playing",
+            "property": 1, "selector": 5 },
+          { "binding_id": 5, "surface_id": "deck", "widget_id": "worker-state",
+            "property": 0, "selector": 7 },
+          { "binding_id": 6, "surface_id": "deck", "widget_id": "load-state",
+            "property": 0, "selector": 12 }
+        ]
+      }
+    },
+    {
+      "name": "LvglWidgetSink_1",
+      "module_class": "MusicRaTLvglWidgetSink",
+      "outputs": [
+        { "system_id": 60, "instance_id": 4 },
+        { "system_id": 61, "instance_id": 4 }
+      ],
+      "inputs": [],
+      "synced_inputs": [{ "source_system_id": 50, "source_instance_id": 4 }],
+      "period_ms": 10,
+      "params": {
+        "manifest_path": "@PROJECT_SOURCE_DIR@/examples/configs/playback_status.lvgl.json",
+        "display_instance_id": "deck-display",
+        "width": 800,
+        "height": 480,
+        "backend": @MUSICRAT_LVGL_EXAMPLE_BACKEND@,
+        "device_path": "@MUSICRAT_LVGL_EXAMPLE_DEVICE_PATH@",
+        "window_title": "MusicRaT Deck State",
+        "device_id": 1,
+        "control_bindings": []
+      }
+    },
+    {
+      "name": "NullSink_1",
+      "module_class": "MusicRaTNullSink",
+      "module_address": { "system_id": 40, "instance_id": 4 },
+      "outputs": [],
+      "inputs": [{ "source_system_id": 10, "source_instance_id": 4 }]
+    }
+  ]
+}

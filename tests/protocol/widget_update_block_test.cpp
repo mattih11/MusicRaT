@@ -30,4 +30,9 @@ int main() {
     assert(restored->events[0].surface_id == "main");
     assert(restored->events[0].widget_id == "peak-meter");
     assert(restored->events[0].value == 0.75);
+
+    original.events[0].kind = WIDGET_VALUE_UNAVAILABLE;
+    const auto unavailable = sertial::Message<WidgetUpdateBlock>::serialize(original);
+    const auto unknown = sertial::Message<WidgetUpdateBlock>::deserialize(unavailable.view());
+    assert(unknown && unknown->events[0].kind == WIDGET_VALUE_UNAVAILABLE);
 }

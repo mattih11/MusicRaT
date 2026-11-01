@@ -1,7 +1,8 @@
 #pragma once
 
 #include <musicrat/backends/media/media_decoder.hpp>
-#include <musicrat/backends/media/playback_coordinator.hpp>
+#include <musicrat/backends/media/prepared_playback_coordinator.hpp>
+#include <musicrat/backends/media/tempo_grid_analysis.hpp>
 #include <musicrat/launcher/audio_format_validation.hpp>
 #include <musicrat/dsp/beat_grid.hpp>
 #include <musicrat/dsp/deck_control_quantizer.hpp>
@@ -9,6 +10,7 @@
 #include <musicrat/musicrat.hpp>
 #include <musicrat/protocol/file_player.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <atomic>
 #include <cmath>
@@ -19,6 +21,7 @@
 #include <optional>
 #include <stdexcept>
 #include <stop_token>
+#include <string_view>
 #include <thread>
 
 namespace CommRaT {
@@ -135,6 +138,15 @@ public:
                 },
             },
             {
+                .id = Parameters::FILE_PLAYER_PROTECT_PLAYING_LOADS_PARAMETER_ID,
+                .name = "protect_playing_loads",
+                .display_name = "Protect Playing Deck",
+                .group = "Media",
+                .kind = PARAMETER_KIND_BOOLEAN,
+                .unit = "",
+                .choices = {},
+            },
+            {
                 .id = Parameters::FILE_PLAYER_SYNC_RATE_RAMP_PARAMETER_ID,
                 .name = "sync_rate_ramp_frames",
                 .display_name = "Sync Rate Ramp",
@@ -170,6 +182,15 @@ public:
             {.id = "clear_cue", .display_name = "Clear Cue", .group = "Cue",
              .input_port_id = "deck_control", .kind = SEMANTIC_KIND_TRIGGER,
              .event_type = Messages::DECK_CONTROL_CLEAR_CUE, .default_value = 1.0},
+            {.id = "cue_button_down", .display_name = "CUE Button Down", .group = "Cue",
+             .input_port_id = "deck_control", .kind = SEMANTIC_KIND_TRIGGER,
+             .event_type = Messages::DECK_CONTROL_CUE_BUTTON_DOWN, .default_value = 1.0},
+            {.id = "cue_button_hold", .display_name = "CUE Button Hold", .group = "Cue",
+             .input_port_id = "deck_control", .kind = SEMANTIC_KIND_TRIGGER,
+             .event_type = Messages::DECK_CONTROL_CUE_BUTTON_HOLD, .default_value = 1.0},
+            {.id = "cue_button_up", .display_name = "CUE Button Up", .group = "Cue",
+             .input_port_id = "deck_control", .kind = SEMANTIC_KIND_TRIGGER,
+             .event_type = Messages::DECK_CONTROL_CUE_BUTTON_UP, .default_value = 1.0},
             {.id = "set_loop_start", .display_name = "Set Loop Start", .group = "Loop",
              .input_port_id = "deck_control", .kind = SEMANTIC_KIND_TRIGGER,
              .event_type = Messages::DECK_CONTROL_SET_LOOP_START, .default_value = 1.0},
@@ -184,6 +205,21 @@ public:
              .event_type = Messages::DECK_CONTROL_DISABLE_LOOP, .default_value = 1.0},
         };
         metadata.musicrat_observables.observables = {
+            {.id = "load_state", .display_name = "Load Result", .group = "Media",
+             .output_port_id = "playback_status", .selector = "load_state",
+             .kind = SEMANTIC_KIND_CHOICE, .unit = "", .maximum = 6.0},
+            {.id = "load_decode_error", .display_name = "Load Decode Error", .group = "Media",
+             .output_port_id = "playback_status", .selector = "load_decode_error",
+             .kind = SEMANTIC_KIND_CHOICE, .unit = "", .maximum = 10.0},
+            {.id = "elapsed_time", .display_name = "Elapsed Time", .group = "Timeline",
+             .output_port_id = "playback_status", .selector = "elapsed_time",
+             .kind = SEMANTIC_KIND_TEXT},
+            {.id = "remaining_time", .display_name = "Remaining Time", .group = "Timeline",
+             .output_port_id = "playback_status", .selector = "remaining_time",
+             .kind = SEMANTIC_KIND_TEXT},
+            {.id = "position", .display_name = "Track Position", .group = "Timeline",
+             .output_port_id = "playback_status", .selector = "position",
+             .kind = SEMANTIC_KIND_CONTINUOUS},
             {.id = "playback_rate", .display_name = "Playback Rate", .group = "Playback",
              .output_port_id = "playback_status", .selector = "playback_rate",
              .kind = SEMANTIC_KIND_CONTINUOUS, .unit = "x",
@@ -229,6 +265,9 @@ public:
         , frames_per_period_(calculate_frame_count(
             config, this->params_.output_sample_rate_hz)) {
         validate_params();
+        if (musicrat::dsp::BeatGridMapper{this->params_.beat_grid}.valid()) {
+            tempo_grid_.emplace(this->params_.beat_grid);
+        }
         if (this->params_.transport_sync_mode != Messages::TRANSPORT_SYNC_OFF) {
             transport_follower_.emplace(
                 this->params_.beat_grid,
@@ -260,7 +299,20 @@ protected:
             request_ready_.notify_one();
             worker_.join();
         }
-        player_.worker_close();
+        {
+            std::lock_guard lock(request_mutex_);
+            if (pending_request_.type == RequestType::Load) {
+                player_.worker_cancel_request(pending_request_.load_request_id);
+            }
+            pending_request_ = {};
+            lifecycle_request_ = {};
+            request_in_progress_ = false;
+        }
+        analyzed_track_.store(0, std::memory_order_release);
+        analyzed_sample_rate_hz_.store(0, std::memory_order_release);
+        analyzed_tempo_bpm_.store(0.0, std::memory_order_release);
+        analyzed_confidence_per_mille_.store(0, std::memory_order_release);
+        player_.shutdown();
     }
 
     commrat::LifecycleResult on_enable() override {
@@ -284,6 +336,14 @@ protected:
         const commrat::Synced<Messages::TransportBlock>& transport,
         Messages::AudioBlock& output,
         Messages::PlaybackStatusBlock& status) override {
+        musicrat::backends::media::TempoGridAnalysisResult analysis{};
+        while (tempo_analysis_.poll(analysis)) {
+            if (!analysis.valid) continue;
+            analyzed_track_.store(analysis.request_id, std::memory_order_release);
+            analyzed_sample_rate_hz_.store(analysis.sample_rate_hz, std::memory_order_release);
+            analyzed_tempo_bpm_.store(analysis.tempo_bpm, std::memory_order_release);
+            analyzed_confidence_per_mille_.store(analysis.confidence_per_mille, std::memory_order_release);
+        }
         const Messages::DeckControlEventBlock* controls = nullptr;
         if (deck_controls.is_fresh()) {
             controls = &deck_controls.value();
@@ -321,6 +381,15 @@ protected:
             sequence_number,
             output,
             controls);
+        if (generation != player_.generation()) {
+            control_quantizer_.reset();
+            quantized_actions_pending_ = 0;
+            transport_seek_frame_.store(no_transport_seek, std::memory_order_release);
+            cue_seek_frame_.store(no_transport_seek, std::memory_order_release);
+        }
+        if (uint64_t cue_seek_frame = 0; player_.take_seek_request(cue_seek_frame)) {
+            cue_seek_frame_.store(cue_seek_frame, std::memory_order_release);
+        }
         decltype(player_)::PlaybackDiagnostics diagnostics{};
         const bool diagnostics_current = player_.try_read_diagnostics(diagnostics)
             && diagnostics.generation == player_.generation();
@@ -375,7 +444,47 @@ protected:
                 ? this->params_.transport_sync_mode
                 : Messages::TRANSPORT_SYNC_OFF,
             .flags = status_flags(output),
+            .track_instance_id = player_.track_instance_id(),
+            .load_request_id = player_.load_status().request_id,
+            .load_state = player_.load_status().state,
+            .load_decode_error = playback_decode_error(player_.load_status().decode_error),
+            .marker_track_instance_id = player_.track_instance_id(),
+            .markers = player_.track_instance_id() != 0 ? player_.markers() : Messages::DeckMarkerState{},
         };
+        const bool startup_grid = tempo_grid_ && diagnostics_current && status.track_instance_id != 0
+            && status.track_instance_id == startup_grid_track_.load(std::memory_order_acquire)
+            && tempo_grid_->grid().sample_rate_hz == status.source_sample_rate_hz
+            && status.duration_frames != 0 && std::isfinite(status.media_position_frames)
+            && status.media_position_frames >= 0;
+        if (startup_grid) {
+            const auto bpm = tempo_grid_->tempo_at_frame(std::min(status.media_position_frames,
+                static_cast<double>(status.duration_frames - 1)));
+            const auto current = bpm * status.playback_rate;
+            if (std::isfinite(current) && current > 0) {
+                status.beat_grid_track_instance_id = status.track_instance_id;
+                status.track_bpm = bpm;
+                status.current_bpm = current;
+                status.beat_grid = tempo_grid_->grid();
+            }
+        } else if (diagnostics_current && status.track_instance_id != 0
+            && status.track_instance_id == analyzed_track_.load(std::memory_order_acquire)
+            && status.source_sample_rate_hz == analyzed_sample_rate_hz_.load(std::memory_order_acquire)
+            && status.duration_frames != 0
+            && std::isfinite(status.playback_rate) && status.playback_rate > 0) {
+            const auto bpm = analyzed_tempo_bpm_.load(std::memory_order_acquire);
+            const auto current = bpm * status.playback_rate;
+            if (std::isfinite(bpm) && bpm > 0 && std::isfinite(current) && current > 0) {
+                status.beat_grid_track_instance_id = status.track_instance_id;
+                status.track_bpm = bpm;
+                status.current_bpm = current;
+                status.beat_grid.sample_rate_hz = status.source_sample_rate_hz;
+                status.beat_grid.beats_per_bar = 4;
+                status.beat_grid.beat_unit = 4;
+                status.beat_grid.confidence_per_mille = analyzed_confidence_per_mille_.load(std::memory_order_acquire);
+                status.beat_grid.flags = Messages::BEAT_GRID_FLAG_ANALYZED;
+                static_cast<void>(status.beat_grid.segments.push_back({.tempo_bpm = bpm}));
+            }
+        }
     }
 
 private:
@@ -390,6 +499,8 @@ private:
         RequestType type{RequestType::None};
         sertial::fixed_string<512> path{};
         uint64_t media_frame{0};
+        uint64_t load_request_id{0};
+        bool protect_playing{true};
     };
 
     static uint32_t calculate_frame_count(
@@ -557,7 +668,8 @@ private:
     bool enqueue(const PendingRequest& request) {
         {
             std::lock_guard lock(request_mutex_);
-            if (pending_request_.type != RequestType::None) {
+            if (pending_request_.type != RequestType::None || request_in_progress_
+                || lifecycle_request_.type != RequestType::None) {
                 return false;
             }
             pending_request_ = request;
@@ -569,13 +681,34 @@ private:
     void enqueue_lifecycle(const PendingRequest& request) {
         {
             std::lock_guard lock(request_mutex_);
-            pending_request_ = request;
+            lifecycle_request_ = request;
+            if (request.type == RequestType::Load) {
+                if (load_request_counter_ == std::numeric_limits<uint64_t>::max()) {
+                    throw std::overflow_error("AudioFilePlayer load request IDs exhausted");
+                }
+                lifecycle_request_.load_request_id = ++load_request_counter_;
+                lifecycle_request_.protect_playing = false;
+                startup_grid_track_.store(lifecycle_request_.load_request_id, std::memory_order_release);
+            }
         }
         request_ready_.notify_one();
     }
 
     void worker_loop(std::stop_token stop_token) noexcept {
         while (!stop_token.stop_requested()) {
+            static_cast<void>(player_.worker_refill());
+            if (player_.worker_load_pending()) {
+                std::unique_lock lock(request_mutex_);
+                if (lifecycle_request_.type != RequestType::None) {
+                    lock.unlock();
+                    if (player_.worker_cancel_load()) continue;
+                    lock.lock();
+                }
+                request_ready_.wait_for(lock, std::chrono::milliseconds{2}, [&] {
+                    return stop_token.stop_requested();
+                });
+                continue;
+            }
             PendingRequest request{};
             {
                 std::unique_lock lock(request_mutex_);
@@ -585,34 +718,62 @@ private:
                     [&] {
                         return stop_token.stop_requested()
                             || pending_request_.type != RequestType::None
+                            || lifecycle_request_.type != RequestType::None
                             || transport_seek_frame_.load(
+                                std::memory_order_acquire) != no_transport_seek
+                            || cue_seek_frame_.load(
                                 std::memory_order_acquire) != no_transport_seek;
                     });
                 if (stop_token.stop_requested()) {
                     break;
                 }
-                request = pending_request_;
-                pending_request_ = {};
+                request_in_progress_ = false;
+                if (lifecycle_request_.type != RequestType::None) {
+                    if (pending_request_.type == RequestType::Load) {
+                        player_.worker_cancel_request(pending_request_.load_request_id);
+                    }
+                    pending_request_ = {};
+                    request = lifecycle_request_;
+                    lifecycle_request_ = {};
+                } else {
+                    request = pending_request_;
+                    pending_request_ = {};
+                }
+                request_in_progress_ = request.type != RequestType::None;
             }
 
             switch (request.type) {
             case RequestType::Load:
                 transport_seek_frame_.store(
                     no_transport_seek, std::memory_order_release);
-                static_cast<void>(player_.worker_open(request.path.c_str()));
+                cue_seek_frame_.store(
+                    no_transport_seek, std::memory_order_release);
+                if (player_.worker_prepare(
+                        request.path.c_str(), request.load_request_id, request.protect_playing)) {
+                    static_cast<void>(tempo_analysis_.submit(
+                        request.load_request_id, request.path.c_str()));
+                }
                 break;
             case RequestType::Seek:
                 transport_seek_frame_.store(
+                    no_transport_seek, std::memory_order_release);
+                cue_seek_frame_.store(
                     no_transport_seek, std::memory_order_release);
                 static_cast<void>(player_.worker_seek(request.media_frame));
                 break;
             case RequestType::Unload:
                 transport_seek_frame_.store(
                     no_transport_seek, std::memory_order_release);
-                player_.worker_close();
+                cue_seek_frame_.store(
+                    no_transport_seek, std::memory_order_release);
+                static_cast<void>(player_.worker_close());
                 break;
             case RequestType::None:
-                if (const uint64_t seek_frame = transport_seek_frame_.exchange(
+                if (const uint64_t seek_frame = cue_seek_frame_.exchange(
+                        no_transport_seek, std::memory_order_acq_rel);
+                    seek_frame != no_transport_seek) {
+                    static_cast<void>(player_.worker_seek(seek_frame));
+                } else if (const uint64_t seek_frame = transport_seek_frame_.exchange(
                         no_transport_seek, std::memory_order_acq_rel);
                     seek_frame != no_transport_seek) {
                     static_cast<void>(player_.worker_seek(seek_frame));
@@ -620,14 +781,42 @@ private:
                 break;
             }
             static_cast<void>(player_.worker_refill());
+            if (!player_.worker_load_pending()) {
+                std::lock_guard lock(request_mutex_);
+                request_in_progress_ = false;
+            }
         }
     }
 
+protected:
     void handle_load(const Messages::LoadMedia& command, Messages::LoadMedia::Reply& reply) {
+        reply = {};
+        const std::string_view path{command.path.c_str(), command.path.size()};
+        if (path.empty() || path.find('\0') != std::string_view::npos) {
+            reply.rejection = Messages::MEDIA_LOAD_REJECTION_INVALID_PATH;
+            return;
+        }
         PendingRequest request{};
         request.type = RequestType::Load;
         request.path = command.path;
-        reply.accepted = !command.path.empty() && enqueue(request);
+        request.protect_playing = this->params_.protect_playing_loads;
+        {
+            std::lock_guard lock(request_mutex_);
+            if (pending_request_.type != RequestType::None || request_in_progress_
+                || lifecycle_request_.type != RequestType::None) {
+                reply.rejection = Messages::MEDIA_LOAD_REJECTION_BUSY;
+                return;
+            }
+            if (load_request_counter_ == std::numeric_limits<uint64_t>::max()) {
+                reply.rejection = Messages::MEDIA_LOAD_REJECTION_ID_EXHAUSTED;
+                return;
+            }
+            request.load_request_id = ++load_request_counter_;
+            pending_request_ = request;
+            reply.accepted = true;
+            reply.request_id = request.load_request_id;
+        }
+        request_ready_.notify_one();
     }
 
     void handle_seek(const Messages::SeekMedia& command, Messages::SeekMedia::Reply& reply) {
@@ -645,19 +834,31 @@ private:
         reply.accepted = enqueue(request);
     }
 
-    musicrat::backends::media::PlaybackCoordinator<
+private:
+    musicrat::backends::media::PreparedPlaybackCoordinator<
         musicrat::backends::media::MediaDecoder,
         decode_chunk_count> player_{};
     std::jthread worker_{};
     std::mutex request_mutex_{};
     std::condition_variable request_ready_{};
     PendingRequest pending_request_{};
+    PendingRequest lifecycle_request_{};
+    uint64_t load_request_counter_{0};
+    bool request_in_progress_{false};
     std::optional<musicrat::dsp::TransportFollower> transport_follower_{};
+    std::optional<musicrat::dsp::BeatGridMapper> tempo_grid_{};
+    musicrat::backends::media::TempoGridAnalysisWorker tempo_analysis_{};
+    std::atomic<uint64_t> startup_grid_track_{0};
+    std::atomic<uint64_t> analyzed_track_{0};
+    std::atomic<uint32_t> analyzed_sample_rate_hz_{0};
+    std::atomic<double> analyzed_tempo_bpm_{0};
+    std::atomic<uint16_t> analyzed_confidence_per_mille_{0};
     musicrat::dsp::DeckControlQuantizer control_quantizer_{};
     Messages::DeckControlEventBlock quantized_controls_{};
     static constexpr uint64_t no_transport_seek =
         std::numeric_limits<uint64_t>::max();
     std::atomic<uint64_t> transport_seek_frame_{no_transport_seek};
+    std::atomic<uint64_t> cue_seek_frame_{no_transport_seek};
     uint32_t frames_per_period_;
     uint64_t sequence_number_{0};
     uint64_t transport_sequence_number_{0};

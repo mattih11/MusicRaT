@@ -376,7 +376,31 @@ elseif(MUSICRAT_AUDIO_BACKEND STREQUAL "ALSA")
     target_link_libraries(musicrat_audio_device_backend PRIVATE PkgConfig::ALSA)
 endif()
 
-install(TARGETS musicrat_core musicrat_audio_device_backend
+find_package(Threads REQUIRED)
+add_library(musicrat_media_library
+    src/backends/media/directory_browser.cpp
+    src/backends/media/directory_browser_worker.cpp
+    src/backends/media/waveform_overview.cpp
+    src/backends/media/rekordbox_anlz.cpp
+    src/backends/media/rekordbox_pdb.cpp
+    src/backends/media/deck_load_worker.cpp)
+add_library(MusicRaT::media_library ALIAS musicrat_media_library)
+set_target_properties(musicrat_media_library PROPERTIES EXPORT_NAME media_library)
+target_link_libraries(musicrat_media_library PUBLIC musicrat_core Threads::Threads)
+if(TARGET musicrat_lvgl_widgets)
+    target_sources(musicrat_lvgl_widgets PRIVATE
+        src/backends/lvgl_directory_browser.cpp
+        src/backends/lvgl_deck_view.cpp
+        src/backends/lvgl_deck.cpp)
+    target_link_libraries(musicrat_lvgl_widgets PUBLIC musicrat_media_library)
+endif()
+if(MSVC)
+    target_compile_options(musicrat_media_library PRIVATE /W4)
+else()
+    target_compile_options(musicrat_media_library PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+install(TARGETS musicrat_core musicrat_audio_device_backend musicrat_media_library
     EXPORT MusicRaTTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -424,6 +448,10 @@ option(BUILD_MUSICXML "Build MusicXML support" OFF)
 
 if(BUILD_MUSICRAT)
     message(STATUS "Building MusicRaT")
+    if(TARGET musicrat_lvgl_widgets)
+        add_executable(musicrat_lvgl_browser_preview src/apps/lvgl_browser_preview_main.cpp)
+        target_link_libraries(musicrat_lvgl_browser_preview PRIVATE musicrat_lvgl_widgets)
+    endif()
     if(NOT TARGET commrat)
         add_library(commrat ALIAS CommRaT::commrat)
     endif()
@@ -590,6 +618,12 @@ if(BUILD_MUSICRAT)
         musicrat_core
     )
 
+    commrat_module(musicrat_playback_status_ui_adapter
+        SOURCES src/modules/playback_status_ui_adapter_main.cpp
+        MODULE_CLASS MusicRaTPlaybackStatusUiAdapter
+        LINKS musicrat_core
+    )
+
     commrat_module(musicrat_widget_update_merger
         SOURCES src/modules/widget_update_merger_main.cpp
         MODULE_CLASS MusicRaTWidgetUpdateMerger
@@ -598,6 +632,24 @@ if(BUILD_MUSICRAT)
     )
 
     if(TARGET musicrat_lvgl_widgets)
+        commrat_module(musicrat_lvgl_deck
+            SOURCES src/modules/lvgl_deck_main.cpp
+            MODULE_CLASS MusicRaTLvglDeck
+            LINKS musicrat_lvgl_widgets)
+        set(MUSICRAT_DECK_BACKEND 0)
+        set(MUSICRAT_DECK_SINK_CLASS MusicRaTNullSink)
+        configure_file(examples/configs/lvgl_deck.json.in
+            "${PROJECT_BINARY_DIR}/lvgl_deck.json" @ONLY)
+        install(FILES "${PROJECT_BINARY_DIR}/lvgl_deck.json"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/musicrat/examples")
+        if(MUSICRAT_LVGL_ENABLE_SDL)
+            set(MUSICRAT_DECK_BACKEND 3)
+            set(MUSICRAT_DECK_SINK_CLASS MusicRaTAudioDeviceSink)
+            configure_file(examples/configs/lvgl_deck.json.in
+                "${PROJECT_BINARY_DIR}/lvgl_deck_sdl.json" @ONLY)
+            install(FILES "${PROJECT_BINARY_DIR}/lvgl_deck_sdl.json"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/musicrat/examples")
+        endif()
         commrat_module(musicrat_lvgl_widget_sink
             SOURCES src/modules/lvgl_widget_sink_main.cpp
             MODULE_CLASS MusicRaTLvglWidgetSink
@@ -640,8 +692,10 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_level_meter PRIVATE /W4)
         target_compile_options(musicrat_level_meter_ui_adapter PRIVATE /W4)
         target_compile_options(musicrat_parameter_state_ui_adapter PRIVATE /W4)
+        target_compile_options(musicrat_playback_status_ui_adapter PRIVATE /W4)
         target_compile_options(musicrat_widget_update_merger PRIVATE /W4)
         if(TARGET musicrat_lvgl_widget_sink)
+            target_compile_options(musicrat_lvgl_deck PRIVATE /W4)
             target_compile_options(musicrat_lvgl_widget_sink PRIVATE /W4)
         endif()
         target_compile_options(musicrat_telemetry_sink PRIVATE /W4)
@@ -669,8 +723,10 @@ if(BUILD_MUSICRAT)
         target_compile_options(musicrat_level_meter PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_level_meter_ui_adapter PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_parameter_state_ui_adapter PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(musicrat_playback_status_ui_adapter PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(musicrat_widget_update_merger PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET musicrat_lvgl_widget_sink)
+            target_compile_options(musicrat_lvgl_deck PRIVATE -Wall -Wextra -Wpedantic)
             target_compile_options(musicrat_lvgl_widget_sink PRIVATE -Wall -Wextra -Wpedantic)
         endif()
         target_compile_options(musicrat_telemetry_sink PRIVATE -Wall -Wextra -Wpedantic)
@@ -701,6 +757,7 @@ if(BUILD_MUSICRAT)
         musicrat_level_meter
         musicrat_level_meter_ui_adapter
         musicrat_parameter_state_ui_adapter
+        musicrat_playback_status_ui_adapter
         musicrat_widget_update_merger
         musicrat_telemetry_sink
         musicrat_launcher
@@ -734,9 +791,12 @@ if(BUILD_MUSICRAT)
     musicrat_install_module_descriptor(musicrat_level_meter MusicRaTLevelMeter)
     musicrat_install_module_descriptor(musicrat_level_meter_ui_adapter MusicRaTLevelMeterUiAdapter)
     musicrat_install_module_descriptor(musicrat_parameter_state_ui_adapter MusicRaTParameterStateUiAdapter)
+    musicrat_install_module_descriptor(musicrat_playback_status_ui_adapter MusicRaTPlaybackStatusUiAdapter)
     musicrat_install_module_descriptor(musicrat_widget_update_merger MusicRaTWidgetUpdateMerger)
     musicrat_install_module_descriptor(musicrat_telemetry_sink MusicRaTTelemetrySink)
     if(TARGET musicrat_lvgl_widget_sink)
+        install(TARGETS musicrat_lvgl_deck DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        musicrat_install_module_descriptor(musicrat_lvgl_deck MusicRaTLvglDeck)
         install(TARGETS musicrat_lvgl_widget_sink DESTINATION "${CMAKE_INSTALL_BINDIR}")
         musicrat_install_module_descriptor(musicrat_lvgl_widget_sink MusicRaTLvglWidgetSink)
     endif()
@@ -759,6 +819,63 @@ if(BUILD_TESTING)
     target_link_libraries(musicrat_note_event_block_test PRIVATE musicrat_core)
     add_test(NAME musicrat.protocol.note_event_block
         COMMAND musicrat_note_event_block_test)
+
+    add_executable(musicrat_media_library_test tests/protocol/media_library_test.cpp)
+    target_link_libraries(musicrat_media_library_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.protocol.media_library COMMAND musicrat_media_library_test)
+
+    add_executable(musicrat_media_load_test tests/protocol/media_load_test.cpp)
+    target_link_libraries(musicrat_media_load_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.protocol.media_load COMMAND musicrat_media_load_test)
+
+    add_executable(musicrat_prepared_playback_coordinator_test
+        tests/backends/prepared_playback_coordinator_test.cpp)
+    target_link_libraries(musicrat_prepared_playback_coordinator_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.backends.prepared_playback_coordinator
+        COMMAND musicrat_prepared_playback_coordinator_test)
+
+    add_executable(musicrat_audio_file_player_load_test
+        tests/modules/audio_file_player_load_test.cpp)
+    target_link_libraries(musicrat_audio_file_player_load_test PRIVATE musicrat_core musicrat_media_library)
+    add_test(NAME musicrat.modules.audio_file_player_load COMMAND musicrat_audio_file_player_load_test)
+    set_tests_properties(musicrat.modules.audio_file_player_load PROPERTIES TIMEOUT 20)
+
+    add_executable(musicrat_directory_browser_test tests/backends/directory_browser_test.cpp)
+    target_link_libraries(musicrat_directory_browser_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.directory_browser COMMAND musicrat_directory_browser_test)
+
+    add_executable(musicrat_media_selection_test tests/backends/media_selection_test.cpp)
+    target_link_libraries(musicrat_media_selection_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.media_selection COMMAND musicrat_media_selection_test)
+
+    add_executable(musicrat_selection_load_test tests/control/selection_load_test.cpp)
+    target_link_libraries(musicrat_selection_load_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.control.selection_load COMMAND musicrat_selection_load_test)
+
+    add_executable(musicrat_deck_load_worker_test tests/backends/deck_load_worker_test.cpp)
+    target_link_libraries(musicrat_deck_load_worker_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.deck_load_worker COMMAND musicrat_deck_load_worker_test)
+
+    add_executable(musicrat_waveform_overview_test tests/backends/waveform_overview_test.cpp)
+    target_link_libraries(musicrat_waveform_overview_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.waveform_overview COMMAND musicrat_waveform_overview_test)
+
+    add_executable(musicrat_tempo_grid_analysis_test tests/backends/tempo_grid_analysis_test.cpp)
+    target_link_libraries(musicrat_tempo_grid_analysis_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.tempo_grid_analysis COMMAND musicrat_tempo_grid_analysis_test)
+
+    add_executable(musicrat_rekordbox_anlz_test tests/backends/rekordbox_anlz_test.cpp)
+    target_link_libraries(musicrat_rekordbox_anlz_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.rekordbox_anlz COMMAND musicrat_rekordbox_anlz_test)
+
+    add_executable(musicrat_rekordbox_pdb_test tests/backends/rekordbox_pdb_test.cpp)
+    target_link_libraries(musicrat_rekordbox_pdb_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.rekordbox_pdb COMMAND musicrat_rekordbox_pdb_test)
+
+    add_executable(musicrat_directory_browser_worker_test tests/backends/directory_browser_worker_test.cpp)
+    target_link_libraries(musicrat_directory_browser_worker_test PRIVATE musicrat_media_library)
+    add_test(NAME musicrat.backends.directory_browser_worker COMMAND musicrat_directory_browser_worker_test)
+    set_tests_properties(musicrat.backends.directory_browser_worker PROPERTIES TIMEOUT 15)
 
     add_executable(musicrat_transport_test tests/protocol/transport_test.cpp)
     target_link_libraries(musicrat_transport_test PRIVATE musicrat_core)
@@ -803,6 +920,24 @@ if(BUILD_TESTING)
         COMMAND musicrat_note_oscillator_test)
 
     if(TARGET musicrat_lvgl_widgets)
+        add_executable(musicrat_lvgl_directory_browser_test tests/backends/lvgl_directory_browser_test.cpp)
+        target_link_libraries(musicrat_lvgl_directory_browser_test PRIVATE musicrat_lvgl_widgets)
+        add_test(NAME musicrat.backends.lvgl_directory_browser COMMAND musicrat_lvgl_directory_browser_test)
+        set_tests_properties(musicrat.backends.lvgl_directory_browser PROPERTIES TIMEOUT 15)
+        if(TARGET musicrat_lvgl_browser_preview)
+            add_test(NAME musicrat.integration.lvgl_browser_preview
+                COMMAND musicrat_lvgl_browser_preview
+                    --root "${PROJECT_SOURCE_DIR}/examples/configs" --duration-ms 300)
+            set_tests_properties(musicrat.integration.lvgl_browser_preview PROPERTIES TIMEOUT 15)
+            add_test(NAME musicrat.integration.lvgl_browser_preview_invalid_root
+                COMMAND musicrat_lvgl_browser_preview
+                    --root "${PROJECT_SOURCE_DIR}/CMakeLists.txt" --duration-ms 300)
+            set_tests_properties(musicrat.integration.lvgl_browser_preview_invalid_root
+                PROPERTIES TIMEOUT 15 WILL_FAIL TRUE)
+        endif()
+        add_executable(musicrat_lvgl_deck_view_test tests/backends/lvgl_deck_view_test.cpp)
+        target_link_libraries(musicrat_lvgl_deck_view_test PRIVATE musicrat_lvgl_widgets)
+        add_test(NAME musicrat.backends.lvgl_deck_view COMMAND musicrat_lvgl_deck_view_test)
         add_executable(musicrat_lvgl_display_backend_test
             tests/backends/lvgl_display_backend_test.cpp)
         target_link_libraries(musicrat_lvgl_display_backend_test
@@ -1044,6 +1179,18 @@ if(BUILD_TESTING)
     add_test(NAME musicrat.modules.level_meter_ui_adapter
         COMMAND musicrat_level_meter_ui_adapter_module_test)
 
+    add_executable(musicrat_playback_status_ui_adapter_test
+        tests/dsp/playback_status_ui_adapter_test.cpp)
+    target_link_libraries(musicrat_playback_status_ui_adapter_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.dsp.playback_status_ui_adapter
+        COMMAND musicrat_playback_status_ui_adapter_test)
+
+    add_executable(musicrat_playback_status_ui_adapter_module_test
+        tests/modules/playback_status_ui_adapter_test.cpp)
+    target_link_libraries(musicrat_playback_status_ui_adapter_module_test PRIVATE musicrat_core)
+    add_test(NAME musicrat.modules.playback_status_ui_adapter
+        COMMAND musicrat_playback_status_ui_adapter_module_test)
+
     add_executable(musicrat_widget_update_merger_test
         tests/dsp/widget_update_merger_test.cpp)
     target_link_libraries(musicrat_widget_update_merger_test PRIVATE musicrat_core)
@@ -1152,9 +1299,9 @@ if(BUILD_TESTING)
         COMMAND musicrat_module_metadata_test)
 
     if(TARGET musicrat_launcher)
-        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 25)
+        set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 26)
         if(TARGET musicrat_lvgl_widget_sink)
-            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 26)
+            set(MUSICRAT_INSTALLED_MODULE_DESCRIPTOR_COUNT 28)
         endif()
         add_test(
             NAME musicrat.integration.install_descriptors
@@ -1222,6 +1369,18 @@ if(BUILD_TESTING)
         set_tests_properties(musicrat.fixture.tcp_router.stop PROPERTIES
             FIXTURES_CLEANUP musicrat_tcp_router)
 
+        if(TARGET musicrat_lvgl_deck)
+            add_executable(musicrat_lvgl_deck_rpc_test tests/integration/lvgl_deck_rpc_test.cpp)
+            target_link_libraries(musicrat_lvgl_deck_rpc_test PRIVATE musicrat_lvgl_widgets)
+            add_test(NAME musicrat.integration.lvgl_deck_rpc COMMAND musicrat_lvgl_deck_rpc_test)
+            set_tests_properties(musicrat.integration.lvgl_deck_rpc PROPERTIES
+                FIXTURES_REQUIRED musicrat_tcp_router RESOURCE_LOCK musicrat_tcp_router TIMEOUT 40)
+            add_test(NAME musicrat.integration.lvgl_deck_launcher
+                COMMAND musicrat_launcher "${PROJECT_BINARY_DIR}/lvgl_deck.json" --duration-ms 300)
+            set_tests_properties(musicrat.integration.lvgl_deck_launcher PROPERTIES
+                FIXTURES_REQUIRED musicrat_tcp_router RESOURCE_LOCK musicrat_tcp_router TIMEOUT 15)
+        endif()
+
         add_executable(musicrat_null_sink_test tests/modules/null_sink_test.cpp)
         target_link_libraries(musicrat_null_sink_test PRIVATE musicrat_core)
         add_test(NAME musicrat.modules.null_sink COMMAND musicrat_null_sink_test)
@@ -1262,6 +1421,10 @@ if(BUILD_TESTING)
             configure_file(
                 examples/configs/level_meter_to_lvgl.json.in
                 "${PROJECT_BINARY_DIR}/level_meter_to_lvgl.json"
+                @ONLY)
+            configure_file(
+                examples/configs/playback_status_to_lvgl.json.in
+                "${PROJECT_BINARY_DIR}/playback_status_to_lvgl.json"
                 @ONLY)
             configure_file(
                 examples/configs/multi_display_level_meter_to_lvgl.json.in
@@ -1307,6 +1470,10 @@ if(BUILD_TESTING)
                     "${PROJECT_BINARY_DIR}/level_meter_to_sdl.json"
                     @ONLY)
                 configure_file(
+                    examples/configs/playback_status_to_lvgl.json.in
+                    "${PROJECT_BINARY_DIR}/playback_status_to_sdl.json"
+                    @ONLY)
+                configure_file(
                     examples/configs/interactive_dual_gain.json.in
                     "${PROJECT_BINARY_DIR}/interactive_dual_gain_sdl.json"
                     @ONLY)
@@ -1331,6 +1498,12 @@ if(BUILD_TESTING)
                 NAME musicrat.integration.level_meter_to_lvgl
                 COMMAND musicrat_launcher
                     "${PROJECT_BINARY_DIR}/level_meter_to_lvgl.json"
+                    --duration-ms 300
+            )
+            add_test(
+                NAME musicrat.integration.playback_status_to_lvgl
+                COMMAND musicrat_launcher
+                    "${PROJECT_BINARY_DIR}/playback_status_to_lvgl.json"
                     --duration-ms 300
             )
             add_test(
@@ -1507,6 +1680,7 @@ if(BUILD_TESTING)
         if(TARGET musicrat_lvgl_widget_sink)
             set_tests_properties(
                 musicrat.integration.level_meter_to_lvgl
+                musicrat.integration.playback_status_to_lvgl
                 musicrat.integration.multi_display_level_meter_to_lvgl
                 musicrat.integration.interactive_gain_pan
                 PROPERTIES

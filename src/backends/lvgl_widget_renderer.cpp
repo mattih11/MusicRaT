@@ -402,6 +402,15 @@ LvglWidgetApplyResult LvglWidgetRenderer::apply(
             ++result.missing_count;
             continue;
         }
+        if (update.kind == CommRaT::Messages::WIDGET_VALUE_UNAVAILABLE) {
+            lv_obj_add_state(widget->object, LV_STATE_DISABLED);
+            if (widget->kind == LvglWidgetKind::Text) {
+                lv_label_set_text(widget->object,
+                    update.text.empty() ? "--" : update.text.c_str());
+            }
+            ++result.applied_count;
+            continue;
+        }
         if (widget->interactive && lv_obj_has_state(widget->object, LV_STATE_PRESSED)
             && (widget->kind == LvglWidgetKind::Slider || widget->kind == LvglWidgetKind::Fader
                 || widget->kind == LvglWidgetKind::Knob)) {
@@ -458,6 +467,7 @@ LvglWidgetApplyResult LvglWidgetRenderer::apply(
             ++result.incompatible_count;
             continue;
         }
+        lv_obj_remove_state(widget->object, LV_STATE_DISABLED);
         ++result.applied_count;
     }
     applying_update_ = false;

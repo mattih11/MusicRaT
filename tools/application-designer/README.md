@@ -104,6 +104,15 @@ feedback, rather than treating enum values as normalized continuous controls.
 
 Requires Node.js 18 or newer.
 
+Audio file player observations are available in the shared Graph/UI target
+catalog. Connect elapsed/remaining time to text, track position to a continuous
+widget, playing/ready/looping to a toggle/button, and worker/error state to a
+choice widget. Strict export generates `MusicRaTPlaybackStatusUiAdapter` and
+merges its updates with other observations for the same display. Generated
+adapters stay hidden in the default module picker. Unavailable values visibly
+disable widgets until a valid snapshot arrives. This does not yet add waveform,
+browser, load/seek gestures, or calibrated audible-time interpolation.
+
 ```bash
 npm install
 npm test
